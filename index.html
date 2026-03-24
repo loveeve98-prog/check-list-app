@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <!-- iOS 專屬設定：全螢幕、取消縮放、狀態列顏色 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="HAO-HAO">
+  <title>HAO-HAO Check List</title>
+
+  <!-- 引入 Tailwind CSS 進行版面排版 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入 React 核心框架 -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- 引入 Babel 讓瀏覽器可以讀懂 React 語法 -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- 引入 Firebase 官方資料庫套件 (Compat 版本，最適合單一 HTML 檔案使用) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    /* iOS 慣性滾動與隱藏滾動條 */
+    body { -webkit-overflow-scrolling: touch; -webkit-tap-highlight-color: transparent; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* 引入可愛手寫字體與備用字體 */
+    @import url('https://fonts.googleapis.com/css2?family=Yomogi&family=Kosugi+Maru&display=swap');
+    
+    /* 支援 iPhone 底部橫條 (Home Indicator) 的安全距離 */
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+    .pt-safe { padding-top: env(safe-area-inset-top); }
+  </style>
+</head>
+<body class="bg-[#FCFCF9]">
+  <div id="root"></div>
+
+  <!-- 主要應用程式邏輯 -->
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // ==========================================
+    // 👇 Firebase 專屬設定 (已自動帶入您的金鑰) 👇
+    // ==========================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyBfJd0gZQ2ZHZTkpMbt8TvbrhwoZPupanU",
+      authDomain: "webapp-9f6b5.firebaseapp.com",
+      projectId: "webapp-9f6b5",
+      storageBucket: "webapp-9f6b5.firebasestorage.app",
+      messagingSenderId: "315187495447",
+      appId: "1:315187495447:web:48d730e6343a1e21831252"
+    };
+
+    // 初始化 Firebase
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+    // ==========================================
+
+    // 內建 SVG 圖示庫
+    const Icon = ({ path, className = "w-4 h-4" }) => (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d={path} />
+      </svg>
+    );
+    const Plus = ({className}) => <Icon className={className} path="M12 4v16m8-8H4" />;
+    const Trash2 = ({className}) => <Icon className={className} path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />;
+    const Check = ({className}) => <Icon className={className} path="M5 13l4 4L19 7" />;
+    const RefreshCw = ({className}) => <Icon className={className} path="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />;
+    const Lock = ({className}) => <Icon className={className} path="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />;
+    const Unlock = ({className}) => <Icon className={className} path="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />;
+    const X = ({className}) => <Icon className={className} path="M6 18L18 6M6 6l12 12" />;
+    const ChevronDown = ({className}) => <Icon className={className} path="M19 9l-7 7-7-7" />;
+
+    // 預設清單資料
+    const defaultData = {
+      categories: [
+        { id: 'c1', name: '換尿布', items: [{ id: 'i1_1', name: '尿布 (3-5片)', checked: false }, { id: 'i1_2', name: '濕紙巾', checked: false }, { id: 'i1_3', name: '屁屁膏', checked: false }] },
+        { id: 'c2', name: '餵食', items: [{ id: 'i2_1', name: '奶瓶', checked: false }, { id: 'i2_2', name: '奶粉 (分裝盒)', checked: false }, { id: 'i2_3', name: '保溫瓶 (熱水)', checked: false }, { id: 'i2_4', name: '副食品/零食', checked: false }] },
+        { id: 'c3', name: '衣物與其他', items: [{ id: 'i3_1', name: '備用衣物 (1-2套)', checked: false }, { id: 'i3_2', name: '紗布巾', checked: false }, { id: 'i3_3', name: '安撫奶嘴', checked: false }] }
+      ]
+    };
+
+    // 選項圓點顏色池
+    const dotColors = ['bg-[#7A9874]', 'bg-[#86A6C1]', 'bg-[#C2AA7A]', 'bg-[#C78B73]', 'bg-[#9E9385]'];
+    // 字體設定 (優先使用少女文字，若無則降級為可愛手寫字)
+    const girlFontFamily = '"華康少女文字", "華康少女文字W5", "DFGirl-W5", "DFPGirl-W5", "Yomogi", "Kosugi Maru", sans-serif';
+
+    function App() {
+      const [listData, setListData] = useState({ categories: [] });
+      const [loading, setLoading] = useState(true);
+      const [isEditMode, setIsEditMode] = useState(false);
+      const [activeCategoryId, setActiveCategoryId] = useState('');
+      const [newCategoryName, setNewCategoryName] = useState('');
+      const [newItemName, setNewItemName] = useState('');
+
+      // 監聽 Firebase 資料庫變化 (即時同步核心)
+      useEffect(() => {
+        const docRef = db.collection('checklists').doc('haohao_baby_list');
+        
+        const unsubscribe = docRef.onSnapshot((docSnap) => {
+          if (docSnap.exists) {
+            const data = docSnap.data();
+            setListData(data);
+            if (data.categories?.length > 0 && !activeCategoryId) {
+              setActiveCategoryId(data.categories[0].id);
+            }
+          } else {
+            // 如果是第一次使用，建立預設清單
+            docRef.set(defaultData);
+            setListData(defaultData);
+            setActiveCategoryId(defaultData.categories[0].id);
+          }
+          setLoading(false);
+        });
+
+        return () => unsubscribe();
+      }, []);
+
+      // 將資料更新上傳到 Firebase
+      const updateData = (newData) => {
+        setListData(newData); // 本地先更新，讓畫面不會卡頓
+        db.collection('checklists').doc('haohao_baby_list').set(newData);
+      };
+
+      const toggleItem = (categoryId, itemId) => {
+        const newData = { ...listData };
+        const category = newData.categories.find(c => c.id === categoryId);
+        if (category) {
+          const item = category.items.find(i => i.id === itemId);
+          if (item) item.checked = !item.checked;
+          updateData(newData);
+        }
+      };
+
+      const addItem = (categoryId) => {
+        if (!newItemName.trim()) return;
+        const newData = { ...listData };
+        const category = newData.categories.find(c => c.id === categoryId);
+        if (category) {
+          category.items.push({ id: `i_${Date.now()}`, name: newItemName.trim(), checked: false });
+          updateData(newData);
+          setNewItemName('');
+        }
+      };
+
+      const deleteItem = (categoryId, itemId) => {
+        const newData = { ...listData };
+        const category = newData.categories.find(c => c.id === categoryId);
+        if (category) {
+          category.items = category.items.filter(i => i.id !== itemId);
+          updateData(newData);
+        }
+      };
+
+      const addCategory = () => {
+        if (!newCategoryName.trim()) return;
+        const newId = `c_${Date.now()}`;
+        const newData = { ...listData };
+        newData.categories.push({ id: newId, name: newCategoryName.trim(), items: [] });
+        updateData(newData);
+        setNewCategoryName('');
+        setActiveCategoryId(newId);
+      };
+
+      const deleteCategory = (categoryId) => {
+        const newData = { ...listData };
+        newData.categories = newData.categories.filter(c => c.id !== categoryId);
+        updateData(newData);
+        if (activeCategoryId === categoryId && newData.categories.length > 0) {
+            setActiveCategoryId(newData.categories[0].id);
+        }
+      };
+
+      const resetAllChecks = () => {
+        const newData = { ...listData };
+        newData.categories.forEach(category => category.items.forEach(item => item.checked = false));
+        updateData(newData);
+      };
+
+      if (loading) return (
+        <div className="flex items-center justify-center min-h-screen bg-[#FCFCFA] text-[#5C665A] font-medium" style={{ fontFamily: girlFontFamily }}>
+          <RefreshCw className="w-6 h-6 animate-spin mr-3 text-[#7A9874]" />
+          <span className="text-[16px] tracking-wider">連線至雲端清單中...</span>
+        </div>
+      );
+
+      const activeCategory = listData.categories?.find(c => c.id === activeCategoryId);
+
+      return (
+        <div className="min-h-screen pb-24 pb-safe selection:bg-[#D5DFD2] text-[#4A5048]" style={{ fontFamily: girlFontFamily }}>
+          
+          {/* 頂部標題 */}
+          <div className="bg-white/80 backdrop-blur-md px-4 py-4 md:py-5 pt-safe sticky top-0 z-20 border-b border-[#EEF0EB] shadow-[0_2px_15px_rgba(122,152,116,0.05)]">
+            <div className="max-w-lg mx-auto flex items-center justify-center relative min-h-[60px]">
+              <div className="text-center flex flex-col items-center justify-center">
+                <h1 className="text-[32px] md:text-[40px] text-[#4B5363] tracking-[0.05em] leading-[0.9]" style={{ fontWeight: 'bold' }}>
+                  HAO-HAO
+                </h1>
+                <h2 className="text-[28px] md:text-[34px] font-bold text-[#C97A63] leading-[0.8] mt-1.5">
+                  Check List
+                </h2>
+              </div>
+              <button onClick={resetAllChecks} className="absolute right-0 top-1/2 transform -translate-y-1/2 flex items-center bg-white text-[#7A9874] px-2.5 py-1 rounded-lg text-[12px] font-bold border border-[#E2E6DF] shadow-sm hover:bg-[#F4F6F2] active:scale-95 transition-all">
+                <RefreshCw className="w-3.5 h-3.5 mr-0 sm:mr-1" />
+                <span className="hidden sm:inline">重置</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="max-w-lg mx-auto mt-4 px-4">
+            {/* 上方標籤 Tabs */}
+            <div className="flex overflow-x-auto gap-2.5 pb-2 pt-1 hide-scrollbar">
+              {listData.categories?.map((cat) => (
+                <div key={cat.id} className="relative shrink-0">
+                  <button onClick={() => setActiveCategoryId(cat.id)} className={`px-3.5 py-1.5 rounded-full font-bold text-[13.5px] transition-all duration-300 border tracking-widest ${activeCategoryId === cat.id ? 'bg-[#7A9874] border-[#7A9874] text-white shadow-md' : 'bg-white border-[#E2E6DF] text-[#879383] shadow-sm hover:bg-[#F8F9F7]'}`}>
+                    {cat.name}
+                  </button>
+                  {isEditMode && (
+                    <button onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); }} className="absolute -top-1.5 -right-1.5 bg-[#C78B73] text-white rounded-full p-1 shadow-sm z-10 hover:bg-[#b87c65] active:scale-90">
+                      <X className="w-2.5 h-2.5 font-bold" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {isEditMode && (
+                <div className="shrink-0 flex items-center">
+                  <input type="text" placeholder="新分類..." className="w-20 px-2.5 py-1.5 rounded-l-full border border-r-0 border-[#E2E6DF] focus:outline-none text-[13px] shadow-sm bg-white tracking-widest" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addCategory()} />
+                  <button onClick={addCategory} className="bg-white border border-[#E2E6DF] px-2.5 py-1.5 rounded-r-full shadow-sm text-[#7A9874] hover:bg-[#F4F6F2]">
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 模式切換面板 */}
+            <div className="mt-2.5 mb-5 bg-white rounded-[14px] p-2 flex justify-between items-center border border-[#EAECE7] shadow-sm">
+              <div className={`flex items-center font-bold text-[13.5px] ml-1.5 tracking-widest ${isEditMode ? 'text-[#C78B73]' : 'text-[#879383]'}`}>
+                {isEditMode ? <Unlock className="w-3.5 h-3.5 mr-1.5" /> : <Lock className="w-3.5 h-3.5 mr-1.5" />}
+                目前為{isEditMode ? '編輯' : '瀏覽'}模式
+              </div>
+              <button onClick={() => setIsEditMode(!isEditMode)} className={`px-3 py-1 rounded-full text-white text-[12px] font-bold shadow-sm transition-all flex items-center tracking-widest active:scale-95 ${isEditMode ? 'bg-[#C78B73]' : 'bg-[#7A9874]'}`}>
+                {isEditMode ? <Unlock className="w-3 h-3 mr-1" /> : <Lock className="w-3 h-3 mr-1" />}
+                {isEditMode ? '完成編輯' : '解鎖編輯'}
+              </button>
+            </div>
+
+            {/* 時間軸清單 */}
+            {activeCategory && (
+              <div className="relative ml-4 sm:ml-5 border-l-[2px] border-[#E8ECE5] space-y-3.5 pb-8">
+                {activeCategory.items.map((item, index) => {
+                  const innerDotColor = dotColors[index % dotColors.length];
+                  return (
+                    <div key={item.id} className="relative pl-4">
+                      <div className="absolute -left-[6px] top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border-[2px] border-[#FCFCF9] bg-[#BCC7B8]"></div>
+                      <div onClick={() => toggleItem(activeCategory.id, item.id)} className={`bg-white rounded-[16px] pl-3.5 pr-2.5 py-2.5 flex items-center justify-between border transition-all cursor-pointer ${item.checked ? 'border-transparent opacity-50 bg-[#F4F6F2] shadow-none' : 'border-[#EAECE7] shadow-[0_2px_8px_rgba(122,152,116,0.06)]'}`}>
+                        <div className="flex items-center flex-1 pr-2">
+                          <div className={`w-2 h-2 rounded-full mr-2.5 flex-shrink-0 transition-all ${item.checked ? 'bg-[#C4C9C1]' : innerDotColor}`}></div>
+                          <span className={`text-[15px] font-bold tracking-wider transition-all ${item.checked ? 'line-through text-[#A3ABA0]' : 'text-[#4A5048]'}`}>{item.name}</span>
+                        </div>
+                        {isEditMode ? (
+                          <button onClick={(e) => { e.stopPropagation(); deleteItem(activeCategory.id, item.id); }} className="bg-[#FFF4F2] p-1.5 rounded-full text-[#C78B73]">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <div className="text-[#879383] flex-shrink-0">
+                            {item.checked ? <div className="bg-[#7A9874]/15 p-1 rounded-full"><Check className="text-[#7A9874] w-3.5 h-3.5" /></div> : <ChevronDown className="w-4 h-4 opacity-40" />}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* 新增細項 */}
+                {isEditMode && (
+                  <div className="relative pl-4 mt-4">
+                     <div className="absolute -left-[6px] top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border-[2px] border-[#FCFCF9] bg-[#E8ECE5]"></div>
+                     <div className="bg-white/60 backdrop-blur-sm rounded-[16px] pl-3 pr-1 py-1 flex items-center border-[1.5px] border-dashed border-[#D5DFD2]">
+                        <Plus className="w-3.5 h-3.5 text-[#A3ABA0] mr-1.5" />
+                        <input type="text" placeholder="新增用品..." className="flex-1 bg-transparent border-none focus:outline-none text-[14px] font-bold text-[#525A4E] py-1 tracking-wider" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addItem(activeCategory.id)} />
+                        <button onClick={() => addItem(activeCategory.id)} className="bg-[#7A9874] text-white p-1.5 rounded-full shadow-sm">
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // 渲染應用程式
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
