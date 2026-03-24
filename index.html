@@ -97,6 +97,14 @@
       const [activeCategoryId, setActiveCategoryId] = useState('');
       const [newCategoryName, setNewCategoryName] = useState('');
       const [newItemName, setNewItemName] = useState('');
+      
+      // 追蹤編輯狀態
+      const [editingItemId, setEditingItemId] = useState(null);
+      const [editItemValue, setEditItemValue] = useState('');
+      
+      // 新增：追蹤編輯中的分類 (Tab) 狀態
+      const [editingCategoryId, setEditingCategoryId] = useState(null);
+      const [editCategoryValue, setEditCategoryValue] = useState('');
 
       // 監聽 Firebase 資料庫變化 (即時同步核心)
       useEffect(() => {
@@ -106,8 +114,10 @@
           if (docSnap.exists) {
             const data = docSnap.data();
             setListData(data);
-            if (data.categories?.length > 0 && !activeCategoryId) {
-              setActiveCategoryId(data.categories[0].id);
+            
+            // 確保抓到「最新」的 activeCategoryId
+            if (data.categories?.length > 0) {
+              setActiveCategoryId(prevId => prevId ? prevId : data.categories[0].id);
             }
           } else {
             // 如果是第一次使用，建立預設清單
@@ -135,6 +145,35 @@
           if (item) item.checked = !item.checked;
           updateData(newData);
         }
+      };
+
+      // 儲存修改後的細項名稱
+      const saveEditedItem = (categoryId, itemId) => {
+        if (editItemValue.trim()) {
+          const newData = { ...listData };
+          const category = newData.categories.find(c => c.id === categoryId);
+          if (category) {
+            const item = category.items.find(i => i.id === itemId);
+            if (item) {
+              item.name = editItemValue.trim();
+              updateData(newData);
+            }
+          }
+        }
+        setEditingItemId(null); // 關閉編輯框
+      };
+
+      // 儲存修改後的分類(大項目)名稱
+      const saveEditedCategory = (categoryId) => {
+        if (editCategoryValue.trim()) {
+          const newData = { ...listData };
+          const category = newData.categories.find(c => c.id === categoryId);
+          if (category) {
+            category.name = editCategoryValue.trim();
+            updateData(newData);
+          }
+        }
+        setEditingCategoryId(null); // 關閉編輯框
       };
 
       const addItem = (categoryId) => {
@@ -182,6 +221,27 @@
         updateData(newData);
       };
 
+      // 處理點擊標籤：編輯模式下若點擊當前標籤，則啟動重新命名
+      const handleCategoryClick = (catId, catName) => {
+        if (isEditMode) {
+          if (activeCategoryId === catId) {
+            setEditingCategoryId(catId);
+            setEditCategoryValue(catName);
+          } else {
+            setActiveCategoryId(catId);
+          }
+        } else {
+          setActiveCategoryId(catId);
+        }
+      };
+
+      // 切換編輯模式時，清空所有的編輯狀態
+      const toggleEditMode = () => {
+        setIsEditMode(!isEditMode);
+        setEditingItemId(null);
+        setEditingCategoryId(null);
+      };
+
       if (loading) return (
         <div className="flex items-center justify-center min-h-screen bg-[#FCFCFA] text-[#5C665A] font-medium" style={{ fontFamily: girlFontFamily }}>
           <RefreshCw className="w-6 h-6 animate-spin mr-3 text-[#7A9874]" />
@@ -217,16 +277,40 @@
             <div className="flex overflow-x-auto gap-2.5 pb-2 pt-1 hide-scrollbar">
               {listData.categories?.map((cat) => (
                 <div key={cat.id} className="relative shrink-0">
-                  <button onClick={() => setActiveCategoryId(cat.id)} className={`px-3.5 py-1.5 rounded-full font-bold text-[13.5px] transition-all duration-300 border tracking-widest ${activeCategoryId === cat.id ? 'bg-[#7A9874] border-[#7A9874] text-white shadow-md' : 'bg-white border-[#E2E6DF] text-[#879383] shadow-sm hover:bg-[#F8F9F7]'}`}>
-                    {cat.name}
-                  </button>
-                  {isEditMode && (
+                  {/* 分類名稱編輯狀態判斷 */}
+                  {editingCategoryId === cat.id ? (
+                    <input
+                      autoFocus
+                      className="w-24 px-3.5 py-1.5 rounded-full border-[1.5px] border-[#7A9874] focus:outline-none text-[13.5px] font-bold text-[#525A4E] shadow-sm text-center"
+                      value={editCategoryValue}
+                      onChange={(e) => setEditCategoryValue(e.target.value)}
+                      onBlur={() => saveEditedCategory(cat.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveEditedCategory(cat.id);
+                        if (e.key === 'Escape') setEditingCategoryId(null);
+                      }}
+                    />
+                  ) : (
+                    <button 
+                      onClick={() => handleCategoryClick(cat.id, cat.name)} 
+                      className={`px-3.5 py-1.5 rounded-full font-bold text-[13.5px] transition-all duration-300 border tracking-widest flex items-center justify-center
+                        ${activeCategoryId === cat.id ? 'bg-[#7A9874] border-[#7A9874] text-white shadow-md' : 'bg-white border-[#E2E6DF] text-[#879383] shadow-sm hover:bg-[#F8F9F7]'}
+                        ${isEditMode && activeCategoryId === cat.id ? 'underline decoration-dashed underline-offset-4' : ''}
+                      `}
+                    >
+                      {cat.name}
+                    </button>
+                  )}
+                  
+                  {/* 編輯模式下的刪除分類按鈕 (編輯該分類名稱時隱藏) */}
+                  {isEditMode && editingCategoryId !== cat.id && (
                     <button onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); }} className="absolute -top-1.5 -right-1.5 bg-[#C78B73] text-white rounded-full p-1 shadow-sm z-10 hover:bg-[#b87c65] active:scale-90">
                       <X className="w-2.5 h-2.5 font-bold" />
                     </button>
                   )}
                 </div>
               ))}
+              
               {isEditMode && (
                 <div className="shrink-0 flex items-center">
                   <input type="text" placeholder="新分類..." className="w-20 px-2.5 py-1.5 rounded-l-full border border-r-0 border-[#E2E6DF] focus:outline-none text-[13px] shadow-sm bg-white tracking-widest" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addCategory()} />
@@ -243,7 +327,7 @@
                 {isEditMode ? <Unlock className="w-3.5 h-3.5 mr-1.5" /> : <Lock className="w-3.5 h-3.5 mr-1.5" />}
                 目前為{isEditMode ? '編輯' : '瀏覽'}模式
               </div>
-              <button onClick={() => setIsEditMode(!isEditMode)} className={`px-3 py-1 rounded-full text-white text-[12px] font-bold shadow-sm transition-all flex items-center tracking-widest active:scale-95 ${isEditMode ? 'bg-[#C78B73]' : 'bg-[#7A9874]'}`}>
+              <button onClick={toggleEditMode} className={`px-3 py-1 rounded-full text-white text-[12px] font-bold shadow-sm transition-all flex items-center tracking-widest active:scale-95 ${isEditMode ? 'bg-[#C78B73]' : 'bg-[#7A9874]'}`}>
                 {isEditMode ? <Unlock className="w-3 h-3 mr-1" /> : <Lock className="w-3 h-3 mr-1" />}
                 {isEditMode ? '完成編輯' : '解鎖編輯'}
               </button>
@@ -260,7 +344,37 @@
                       <div onClick={() => toggleItem(activeCategory.id, item.id)} className={`bg-white rounded-[16px] pl-3.5 pr-2.5 py-2.5 flex items-center justify-between border transition-all cursor-pointer ${item.checked ? 'border-transparent opacity-50 bg-[#F4F6F2] shadow-none' : 'border-[#EAECE7] shadow-[0_2px_8px_rgba(122,152,116,0.06)]'}`}>
                         <div className="flex items-center flex-1 pr-2">
                           <div className={`w-2 h-2 rounded-full mr-2.5 flex-shrink-0 transition-all ${item.checked ? 'bg-[#C4C9C1]' : innerDotColor}`}></div>
-                          <span className={`text-[15px] font-bold tracking-wider transition-all ${item.checked ? 'line-through text-[#A3ABA0]' : 'text-[#4A5048]'}`}>{item.name}</span>
+                          
+                          {/* 判斷是否為正在編輯的項目 */}
+                          {editingItemId === item.id ? (
+                            <input
+                              type="text"
+                              autoFocus
+                              className="flex-1 bg-transparent border-b border-[#7A9874] focus:outline-none text-[15px] font-bold text-[#4A5048] tracking-wider px-1 py-0.5"
+                              value={editItemValue}
+                              onChange={(e) => setEditItemValue(e.target.value)}
+                              onBlur={() => saveEditedItem(activeCategory.id, item.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') saveEditedItem(activeCategory.id, item.id);
+                                if (e.key === 'Escape') setEditingItemId(null);
+                              }}
+                              onClick={(e) => e.stopPropagation()} // 防止點擊輸入框時觸發外層的打勾切換
+                            />
+                          ) : (
+                            <span 
+                              className={`text-[15px] font-bold tracking-wider transition-all ${item.checked ? 'line-through text-[#A3ABA0]' : 'text-[#4A5048]'} ${isEditMode && !item.checked ? 'hover:text-[#7A9874] hover:underline decoration-dashed underline-offset-4' : ''}`}
+                              onClick={(e) => {
+                                if (isEditMode) {
+                                  e.stopPropagation(); // 防止點擊文字時觸發外層的打勾切換
+                                  setEditingItemId(item.id);
+                                  setEditItemValue(item.name);
+                                }
+                              }}
+                            >
+                              {item.name}
+                            </span>
+                          )}
+
                         </div>
                         {isEditMode ? (
                           <button onClick={(e) => { e.stopPropagation(); deleteItem(activeCategory.id, item.id); }} className="bg-[#FFF4F2] p-1.5 rounded-full text-[#C78B73]">
