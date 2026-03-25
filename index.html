@@ -2,49 +2,44 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <!-- iOS 專屬設定：全螢幕、取消縮放、狀態列顏色 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="HAO-HAO">
   <title>HAO-HAO Check List</title>
 
-  <!-- 引入 Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- 引入 React 核心框架 -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- 引入 Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  
-  <!-- 引入 SortableJS (用於觸控拖曳排序) -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
   <style>
-    /* iOS 慣性滾動與隱藏滾動條 */
     body { -webkit-overflow-scrolling: touch; -webkit-tap-highlight-color: transparent; }
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    
-    /* 引入可愛手寫字體與備用字體 */
     @import url('https://fonts.googleapis.com/css2?family=Yomogi&family=Kosugi+Maru&display=swap');
     
-    /* 支援 iPhone 底部安全距離 */
     .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
     .pt-safe { padding-top: env(safe-area-inset-top); }
 
-    /* 拖曳時的視覺效果 */
-    .sortable-ghost { opacity: 0.3; }
+    .sortable-ghost { opacity: 0.4; transform: scale(0.98); }
     .sortable-drag { cursor: grabbing !important; }
+
+    /* 清單區域的日系點點背景 (縮小尺寸) */
+    .bg-dot-pattern {
+      background-color: #F8F7F2;
+      background-image: radial-gradient(#DEDCD0 1.5px, transparent 1.5px);
+      background-size: 18px 18px;
+    }
   </style>
 </head>
-<body class="bg-[#FCFCF9]">
+<body class="bg-white">
   <div id="root"></div>
 
-  <!-- 主要應用程式邏輯 -->
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
@@ -66,31 +61,33 @@
     const db = firebase.firestore();
     // ==========================================
 
-    // 內建 SVG 圖示庫
-    const Icon = ({ path, className = "w-4 h-4", strokeWidth = 2.5 }) => (
+    // 圖示庫
+    const Icon = ({ path, className = "w-3.5 h-3.5", strokeWidth = 2.5 }) => (
       <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={strokeWidth}>
         <path strokeLinecap="round" strokeLinejoin="round" d={path} />
       </svg>
     );
     const Plus = ({className}) => <Icon className={className} path="M12 4v16m8-8H4" />;
     const Trash2 = ({className}) => <Icon className={className} path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />;
-    const Check = ({className}) => <Icon className={className} path="M5 13l4 4L19 7" />;
+    const Check = ({className}) => <Icon className={className} path="M5 13l4 4L19 7" strokeWidth={3.5} />;
     const RefreshCw = ({className}) => <Icon className={className} path="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />;
     const Lock = ({className}) => <Icon className={className} path="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />;
     const Unlock = ({className}) => <Icon className={className} path="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />;
     const X = ({className}) => <Icon className={className} path="M6 18L18 6M6 6l12 12" />;
-    const ChevronDown = ({className}) => <Icon className={className} path="M19 9l-7 7-7-7" />;
-    const GripLines = ({className}) => <Icon className={className} path="M4 9h16M4 15h16" strokeWidth={2} />; // 拖曳把手圖示
+    const GripLines = ({className}) => <Icon className={className} path="M4 9h16M4 15h16" strokeWidth={2} />;
+    const ArrowLeft = ({className, strokeWidth = 2.5}) => (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7" />
+      </svg>
+    );
 
     const defaultData = {
       categories: [
-        { id: 'c1', name: '換尿布', items: [{ id: 'i1_1', name: '尿布 (3-5片)', checked: false }, { id: 'i1_2', name: '濕紙巾', checked: false }, { id: 'i1_3', name: '屁屁膏', checked: false }] },
-        { id: 'c2', name: '餵食', items: [{ id: 'i2_1', name: '奶瓶', checked: false }, { id: 'i2_2', name: '奶粉 (分裝盒)', checked: false }, { id: 'i2_3', name: '保溫瓶 (熱水)', checked: false }, { id: 'i2_4', name: '副食品/零食', checked: false }] },
-        { id: 'c3', name: '衣物與其他', items: [{ id: 'i3_1', name: '備用衣物 (1-2套)', checked: false }, { id: 'i3_2', name: '紗布巾', checked: false }, { id: 'i3_3', name: '安撫奶嘴', checked: false }] }
+        { id: 'c1', name: '換尿布', items: [{ id: 'i1_1', name: '尿布 (3-5片)', checked: true }, { id: 'i1_2', name: '濕紙巾', checked: false }, { id: 'i1_3', name: '屁屁膏', checked: false }] },
+        { id: 'c2', name: '餵食', items: [{ id: 'i2_1', name: '奶瓶', checked: false }, { id: 'i2_2', name: '奶粉 (分裝盒)', checked: false }, { id: 'i2_3', name: '保溫瓶 (熱水)', checked: false }, { id: 'i2_4', name: '副食品/零食', checked: false }] }
       ]
     };
 
-    const dotColors = ['bg-[#7A9874]', 'bg-[#86A6C1]', 'bg-[#C2AA7A]', 'bg-[#C78B73]', 'bg-[#9E9385]'];
     const girlFontFamily = '"華康少女文字", "華康少女文字W5", "DFGirl-W5", "DFPGirl-W5", "Yomogi", "Kosugi Maru", sans-serif';
 
     function App() {
@@ -106,13 +103,11 @@
       const [editingCategoryId, setEditingCategoryId] = useState(null);
       const [editCategoryValue, setEditCategoryValue] = useState('');
 
-      // 用於拖曳排序的 Refs
       const tabsRef = useRef(null);
       const itemsRef = useRef(null);
       const sortableTabsRef = useRef(null);
       const sortableItemsRef = useRef(null);
 
-      // 1. Firebase 資料同步
       useEffect(() => {
         const docRef = db.collection('checklists').doc('haohao_baby_list');
         const unsubscribe = docRef.onSnapshot((docSnap) => {
@@ -120,7 +115,10 @@
             const data = docSnap.data();
             setListData(data);
             if (data.categories?.length > 0) {
-              setActiveCategoryId(prevId => prevId ? prevId : data.categories[0].id);
+              setActiveCategoryId(prevId => {
+                const stillExists = data.categories.find(c => c.id === prevId);
+                return stillExists ? prevId : data.categories[0].id;
+              });
             }
           } else {
             docRef.set(defaultData);
@@ -137,30 +135,17 @@
         db.collection('checklists').doc('haohao_baby_list').set(newData);
       };
 
-      // 2. 初始化分類 (Tabs) 拖曳
       useEffect(() => {
         if (!isEditMode || !tabsRef.current) return;
         sortableTabsRef.current = Sortable.create(tabsRef.current, {
-          animation: 200,
-          delay: 200, // 手機長按 0.2 秒才啟動拖曳
-          delayOnTouchOnly: true,
-          direction: 'horizontal',
-          filter: '.ignore-drag', // 忽略新增按鈕
-          ghostClass: 'sortable-ghost',
+          animation: 200, delay: 200, delayOnTouchOnly: true, direction: 'horizontal',
+          filter: '.ignore-drag, input, button', preventOnFilter: false, ghostClass: 'sortable-ghost',
           onEnd: (evt) => {
             if (evt.oldIndex === evt.newIndex) return;
-            
-            // 為了防止 React 報錯，手動復原 DOM 位置，讓 React 去更新畫面
-            const itemEl = evt.item;
-            const parent = evt.from;
+            const itemEl = evt.item; const parent = evt.from;
             const siblings = Array.from(parent.children).filter(c => c !== itemEl && !c.classList.contains('ignore-drag'));
-            if (evt.oldIndex < siblings.length) {
-              parent.insertBefore(itemEl, siblings[evt.oldIndex]);
-            } else {
-              parent.appendChild(itemEl);
-            }
-
-            // 更新資料狀態
+            if (evt.oldIndex < siblings.length) parent.insertBefore(itemEl, siblings[evt.oldIndex]);
+            else parent.appendChild(itemEl);
             setListData(prevData => {
               const newCats = Array.from(prevData.categories);
               const [moved] = newCats.splice(evt.oldIndex, 1);
@@ -171,34 +156,19 @@
             });
           }
         });
-
-        return () => {
-          if (sortableTabsRef.current) sortableTabsRef.current.destroy();
-        };
+        return () => { if (sortableTabsRef.current) sortableTabsRef.current.destroy(); };
       }, [isEditMode]);
 
-      // 3. 初始化細項 (Items) 拖曳
       useEffect(() => {
         if (!isEditMode || !itemsRef.current) return;
         sortableItemsRef.current = Sortable.create(itemsRef.current, {
-          animation: 200,
-          handle: '.drag-handle', // 只有按住把手才能拖曳
-          filter: '.ignore-drag',
-          ghostClass: 'sortable-ghost',
+          animation: 200, handle: '.drag-handle', filter: '.ignore-drag, input, button', preventOnFilter: false, ghostClass: 'sortable-ghost',
           onEnd: (evt) => {
             if (evt.oldIndex === evt.newIndex) return;
-            
-            // 復原 DOM 位置
-            const itemEl = evt.item;
-            const parent = evt.from;
+            const itemEl = evt.item; const parent = evt.from;
             const siblings = Array.from(parent.children).filter(c => c !== itemEl && !c.classList.contains('ignore-drag'));
-            if (evt.oldIndex < siblings.length) {
-              parent.insertBefore(itemEl, siblings[evt.oldIndex]);
-            } else {
-              parent.appendChild(itemEl);
-            }
-
-            // 更新資料狀態
+            if (evt.oldIndex < siblings.length) parent.insertBefore(itemEl, siblings[evt.oldIndex]);
+            else parent.appendChild(itemEl);
             setListData(prevData => {
               const newData = { ...prevData };
               const category = newData.categories.find(c => c.id === activeCategoryId);
@@ -213,13 +183,9 @@
             });
           }
         });
-
-        return () => {
-          if (sortableItemsRef.current) sortableItemsRef.current.destroy();
-        };
+        return () => { if (sortableItemsRef.current) sortableItemsRef.current.destroy(); };
       }, [isEditMode, activeCategoryId]);
 
-      // --- 各種操作邏輯 ---
       const toggleItem = (categoryId, itemId) => {
         const newData = { ...listData };
         const category = newData.categories.find(c => c.id === categoryId);
@@ -236,10 +202,7 @@
           const category = newData.categories.find(c => c.id === categoryId);
           if (category) {
             const item = category.items.find(i => i.id === itemId);
-            if (item) {
-              item.name = editItemValue.trim();
-              updateData(newData);
-            }
+            if (item) { item.name = editItemValue.trim(); updateData(newData); }
           }
         }
         setEditingItemId(null);
@@ -249,10 +212,7 @@
         if (editCategoryValue.trim()) {
           const newData = { ...listData };
           const category = newData.categories.find(c => c.id === categoryId);
-          if (category) {
-            category.name = editCategoryValue.trim();
-            updateData(newData);
-          }
+          if (category) { category.name = editCategoryValue.trim(); updateData(newData); }
         }
         setEditingCategoryId(null);
       };
@@ -262,7 +222,7 @@
         const newData = { ...listData };
         const category = newData.categories.find(c => c.id === categoryId);
         if (category) {
-          category.items.push({ id: `i_${Date.now()}`, name: newItemName.trim(), checked: false });
+          category.items.push({ id: `i_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, name: newItemName.trim(), checked: false });
           updateData(newData);
           setNewItemName('');
         }
@@ -279,7 +239,7 @@
 
       const addCategory = () => {
         if (!newCategoryName.trim()) return;
-        const newId = `c_${Date.now()}`;
+        const newId = `c_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
         const newData = { ...listData };
         newData.categories.push({ id: newId, name: newCategoryName.trim(), items: [] });
         updateData(newData);
@@ -291,9 +251,7 @@
         const newData = { ...listData };
         newData.categories = newData.categories.filter(c => c.id !== categoryId);
         updateData(newData);
-        if (activeCategoryId === categoryId && newData.categories.length > 0) {
-            setActiveCategoryId(newData.categories[0].id);
-        }
+        if (activeCategoryId === categoryId && newData.categories.length > 0) setActiveCategoryId(newData.categories[0].id);
       };
 
       const resetAllChecks = () => {
@@ -304,62 +262,53 @@
 
       const handleCategoryClick = (catId, catName) => {
         if (isEditMode) {
-          if (activeCategoryId === catId) {
-            setEditingCategoryId(catId);
-            setEditCategoryValue(catName);
-          } else {
-            setActiveCategoryId(catId);
-          }
-        } else {
-          setActiveCategoryId(catId);
-        }
+          if (activeCategoryId === catId) { setEditingCategoryId(catId); setEditCategoryValue(catName); }
+          else setActiveCategoryId(catId);
+        } else setActiveCategoryId(catId);
       };
 
-      const toggleEditMode = () => {
-        setIsEditMode(!isEditMode);
-        setEditingItemId(null);
-        setEditingCategoryId(null);
-      };
+      const toggleEditMode = () => { setIsEditMode(!isEditMode); setEditingItemId(null); setEditingCategoryId(null); };
 
       if (loading) return (
-        <div className="flex items-center justify-center min-h-screen bg-[#FCFCFA] text-[#5C665A] font-medium" style={{ fontFamily: girlFontFamily }}>
-          <RefreshCw className="w-6 h-6 animate-spin mr-3 text-[#7A9874]" />
-          <span className="text-[16px] tracking-wider">連線至雲端清單中...</span>
+        <div className="flex items-center justify-center min-h-screen text-[#5C554B] font-medium" style={{ fontFamily: girlFontFamily }}>
+          <RefreshCw className="w-5 h-5 animate-spin mr-3 text-[#7A9874]" />
+          <span className="text-[14.5px] tracking-wider">連線至雲端清單中...</span>
         </div>
       );
 
       const activeCategory = listData.categories?.find(c => c.id === activeCategoryId);
 
       return (
-        <div className="min-h-screen pb-24 pb-safe selection:bg-[#D5DFD2] text-[#4A5048]" style={{ fontFamily: girlFontFamily }}>
+        <div className="min-h-screen pb-24 pb-safe selection:bg-[#E6E4DD] text-[#5A5245]" style={{ fontFamily: girlFontFamily }}>
           
           {/* 頂部標題 */}
-          <div className="bg-white/80 backdrop-blur-md px-4 py-4 md:py-5 pt-safe sticky top-0 z-20 border-b border-[#EEF0EB] shadow-[0_2px_15px_rgba(122,152,116,0.05)]">
-            <div className="max-w-lg mx-auto flex items-center justify-center relative min-h-[60px]">
-              <div className="text-center flex flex-col items-center justify-center">
-                <h1 className="text-[32px] md:text-[40px] text-[#4B5363] tracking-[0.05em] leading-[0.9]" style={{ fontWeight: 'bold' }}>
+          <div className="bg-white/90 backdrop-blur-md px-3.5 py-3.5 md:py-4 pt-safe sticky top-0 z-20 border-b border-[#EBE9E0] shadow-sm">
+            <div className="max-w-lg mx-auto flex items-center justify-center relative min-h-[45px]">
+              <div className="flex flex-col items-center text-center">
+                <h1 className="text-[25px] text-[#4A5048] tracking-widest leading-[1]" style={{ fontWeight: 'bold' }}>
                   HAO-HAO
                 </h1>
-                <h2 className="text-[28px] md:text-[34px] font-bold text-[#C97A63] leading-[0.8] mt-1.5">
+                <h2 className="text-[18px] font-bold text-[#A89F91] leading-[1] mt-1">
                   Check List
                 </h2>
               </div>
-              <button onClick={resetAllChecks} className="absolute right-0 top-1/2 transform -translate-y-1/2 flex items-center bg-white text-[#7A9874] px-2.5 py-1 rounded-lg text-[12px] font-bold border border-[#E2E6DF] shadow-sm hover:bg-[#F4F6F2] active:scale-95 transition-all">
+              <button onClick={resetAllChecks} className="absolute right-0 flex items-center bg-[#F8F7F2] text-[#8F8475] px-2.5 py-1 sm:px-2.5 rounded-lg text-[11.5px] font-bold border border-[#EBE9E0] shadow-sm hover:bg-[#F0EFEA] active:scale-95 transition-all">
                 <RefreshCw className="w-3.5 h-3.5 mr-0 sm:mr-1" />
                 <span className="hidden sm:inline">重置</span>
               </button>
             </div>
           </div>
 
-          <div className="max-w-lg mx-auto mt-4 px-4">
+          <div className="max-w-lg mx-auto mt-3.5 px-3.5 sm:px-4">
+            
             {/* 上方標籤 Tabs */}
-            <div className="flex overflow-x-auto gap-2.5 pb-2 pt-1 hide-scrollbar" ref={tabsRef}>
+            <div className="flex overflow-x-auto gap-1.5 pb-1.5 pt-1 hide-scrollbar" ref={tabsRef}>
               {listData.categories?.map((cat) => (
                 <div key={cat.id} className="relative shrink-0">
                   {editingCategoryId === cat.id ? (
                     <input
                       autoFocus
-                      className="w-24 px-3.5 py-1.5 rounded-full border-[1.5px] border-[#7A9874] focus:outline-none text-[13.5px] font-bold text-[#525A4E] shadow-sm text-center"
+                      className="w-16 px-2.5 py-1 rounded-full border border-[#7A9874] bg-white focus:outline-none text-[13.5px] font-bold text-[#5A5245] shadow-sm text-center"
                       value={editCategoryValue}
                       onChange={(e) => setEditCategoryValue(e.target.value)}
                       onBlur={() => saveEditedCategory(cat.id)}
@@ -371,71 +320,67 @@
                   ) : (
                     <button 
                       onClick={() => handleCategoryClick(cat.id, cat.name)} 
-                      className={`px-3.5 py-1.5 rounded-full font-bold text-[13.5px] transition-all duration-300 border tracking-widest flex items-center justify-center select-none
-                        ${activeCategoryId === cat.id ? 'bg-[#7A9874] border-[#7A9874] text-white shadow-md' : 'bg-white border-[#E2E6DF] text-[#879383] shadow-sm hover:bg-[#F8F9F7]'}
+                      className={`px-3.5 py-1 rounded-full font-bold text-[13.5px] transition-all duration-300 tracking-widest flex items-center justify-center select-none shadow-sm
+                        ${activeCategoryId === cat.id ? 'bg-[#7A9874] text-white' : 'bg-white border border-[#EBE9E0] text-[#A89F91] hover:bg-[#F8F7F2]'}
                         ${isEditMode && activeCategoryId === cat.id ? 'underline decoration-dashed underline-offset-4' : ''}
                       `}
                     >
                       {cat.name}
                     </button>
                   )}
-                  
                   {isEditMode && editingCategoryId !== cat.id && (
-                    <button onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); }} className="absolute -top-1.5 -right-1.5 bg-[#C78B73] text-white rounded-full p-1 shadow-sm z-10 hover:bg-[#b87c65] active:scale-90 ignore-drag">
-                      <X className="w-2.5 h-2.5 font-bold" />
+                    <button onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); }} className="absolute -top-1 -right-1 bg-[#D1CCC2] text-white rounded-full p-1 shadow-sm z-10 hover:bg-[#A89F91] active:scale-90 ignore-drag border border-white">
+                      <X className="w-2 h-2 font-bold" />
                     </button>
                   )}
                 </div>
               ))}
-              
               {isEditMode && (
-                <div className="shrink-0 flex items-center ignore-drag">
-                  <input type="text" placeholder="新分類..." className="w-20 px-2.5 py-1.5 rounded-l-full border border-r-0 border-[#E2E6DF] focus:outline-none text-[13px] shadow-sm bg-white tracking-widest" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addCategory()} />
-                  <button onClick={addCategory} className="bg-white border border-[#E2E6DF] px-2.5 py-1.5 rounded-r-full shadow-sm text-[#7A9874] hover:bg-[#F4F6F2]">
-                    <Plus className="w-4 h-4" />
+                <div className="shrink-0 flex items-center ignore-drag shadow-sm rounded-full">
+                  <input type="text" placeholder="新分類..." className="w-16 px-2.5 py-1 rounded-l-full border border-r-0 border-[#EBE9E0] focus:outline-none text-[12.5px] bg-white tracking-widest text-[#5A5245] font-bold" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addCategory()} />
+                  <button onClick={addCategory} className="bg-white border border-l-0 border-[#EBE9E0] px-2.5 py-1 rounded-r-full text-[#A89F91] hover:text-[#5A5245] transition-colors">
+                    <Plus className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
             </div>
 
             {/* 模式切換面板 */}
-            <div className="mt-2.5 mb-5 bg-white rounded-[14px] p-2 flex justify-between items-center border border-[#EAECE7] shadow-sm">
-              <div className={`flex items-center font-bold text-[13.5px] ml-1.5 tracking-widest ${isEditMode ? 'text-[#C78B73]' : 'text-[#879383]'}`}>
-                {isEditMode ? <Unlock className="w-3.5 h-3.5 mr-1.5" /> : <Lock className="w-3.5 h-3.5 mr-1.5" />}
+            <div className="mt-2.5 mb-3.5 bg-white rounded-[14px] p-2 flex justify-between items-center shadow-sm border border-[#F0EFEA]">
+              <div className={`flex items-center font-bold text-[12.5px] ml-1.5 tracking-widest ${isEditMode ? 'text-[#C78B73]' : 'text-[#8F8475]'}`}>
+                {isEditMode ? <Unlock className="w-3.5 h-3.5 mr-1" /> : <Lock className="w-3.5 h-3.5 mr-1" />}
                 目前為{isEditMode ? '編輯' : '瀏覽'}模式
               </div>
-              <button onClick={toggleEditMode} className={`px-3 py-1 rounded-full text-white text-[12px] font-bold shadow-sm transition-all flex items-center tracking-widest active:scale-95 ${isEditMode ? 'bg-[#C78B73]' : 'bg-[#7A9874]'}`}>
+              <button onClick={toggleEditMode} className={`px-3.5 py-1 rounded-full text-white text-[11.5px] font-bold shadow-sm transition-all flex items-center tracking-widest active:scale-95 ${isEditMode ? 'bg-[#C78B73]' : 'bg-[#7A9874]'}`}>
                 {isEditMode ? <Unlock className="w-3 h-3 mr-1" /> : <Lock className="w-3 h-3 mr-1" />}
                 {isEditMode ? '完成編輯' : '解鎖編輯'}
               </button>
             </div>
 
-            {/* 時間軸清單 */}
+            {/* 手帳風：純色紙張背景與清單區域 */}
             {activeCategory && (
-              <div className="relative ml-4 sm:ml-5 border-l-[2px] border-[#E8ECE5] space-y-3.5 pb-8" ref={itemsRef}>
-                {activeCategory.items.map((item, index) => {
-                  const innerDotColor = dotColors[index % dotColors.length];
-                  return (
-                    <div key={item.id} className="relative pl-4">
-                      <div className="absolute -left-[6px] top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border-[2px] border-[#FCFCF9] bg-[#BCC7B8]"></div>
-                      <div onClick={() => !isEditMode && toggleItem(activeCategory.id, item.id)} className={`bg-white rounded-[16px] pl-3.5 pr-2.5 py-2.5 flex items-center justify-between border transition-all ${!isEditMode ? 'cursor-pointer' : ''} ${item.checked ? 'border-transparent opacity-50 bg-[#F4F6F2] shadow-none' : 'border-[#EAECE7] shadow-[0_2px_8px_rgba(122,152,116,0.06)]'}`}>
+              <div className="bg-white rounded-[20px] shadow-[0_4px_20px_rgba(0,0,0,0.04)] mt-4 p-3.5 sm:p-4 border-[5px] border-white min-h-[40vh]">
+                
+                {/* 細項清單 */}
+                <div className="space-y-2.5" ref={itemsRef}>
+                  {activeCategory.items.map((item) => (
+                    <div key={item.id} className="relative group">
+                      <div onClick={() => !isEditMode && toggleItem(activeCategory.id, item.id)} className={`bg-[#FAF9F6] rounded-[14px] pl-3.5 pr-2.5 py-3 flex items-center justify-between transition-all ${!isEditMode ? 'cursor-pointer active:scale-[0.98]' : ''}`}>
+                        
                         <div className="flex items-center flex-1 pr-2">
                           
-                          {/* 瀏覽模式顯示彩色圓點，編輯模式打勾才顯示灰點 */}
-                          {(!isEditMode || item.checked) && (
-                            <div onClick={(e) => { if(isEditMode) { e.stopPropagation(); toggleItem(activeCategory.id, item.id); } }} className={`w-2 h-2 rounded-full mr-2.5 flex-shrink-0 transition-all ${isEditMode ? 'cursor-pointer' : ''} ${item.checked ? 'bg-[#C4C9C1]' : innerDotColor}`}></div>
-                          )}
-                          
-                          {/* 編輯模式未打勾時，顯示打勾的空心圓，方便點擊 */}
-                          {isEditMode && !item.checked && (
-                            <div onClick={(e) => { e.stopPropagation(); toggleItem(activeCategory.id, item.id); }} className="w-3.5 h-3.5 rounded-full mr-2 flex-shrink-0 border-2 border-[#D5DFD2] cursor-pointer hover:border-[#7A9874] transition-colors"></div>
-                          )}
+                          {/* 方形 Checkbox */}
+                          <div onClick={(e) => { if(isEditMode) { e.stopPropagation(); toggleItem(activeCategory.id, item.id); } }} 
+                               className={`w-[20px] h-[20px] rounded-[5px] mr-3 flex-shrink-0 flex items-center justify-center transition-all cursor-pointer
+                               ${item.checked ? 'bg-[#7A9874] border-transparent shadow-sm' : 'bg-white border-[1.5px] border-[#C2BDB4]'}`}>
+                            {item.checked && <Check className="w-3 h-3 text-white" />}
+                          </div>
 
+                          {/* 項目文字 */}
                           {editingItemId === item.id ? (
                             <input
-                              type="text"
-                              autoFocus
-                              className="flex-1 bg-transparent border-b border-[#7A9874] focus:outline-none text-[15px] font-bold text-[#4A5048] tracking-wider px-1 py-0.5"
+                              type="text" autoFocus
+                              className="flex-1 bg-transparent border-b-[1.5px] border-[#7A9874] focus:outline-none text-[14.5px] font-bold text-[#5A5245] tracking-wider px-1 py-0.5"
                               value={editItemValue}
                               onChange={(e) => setEditItemValue(e.target.value)}
                               onBlur={() => saveEditedItem(activeCategory.id, item.id)}
@@ -447,59 +392,55 @@
                             />
                           ) : (
                             <span 
-                              className={`text-[15px] font-bold tracking-wider transition-all select-none ${item.checked ? 'line-through text-[#A3ABA0]' : 'text-[#4A5048]'} ${isEditMode && !item.checked ? 'cursor-text hover:text-[#7A9874] hover:underline decoration-dashed underline-offset-4' : ''}`}
+                              className={`text-[14.5px] font-bold tracking-wider transition-all select-none
+                                ${item.checked ? 'line-through text-[#B5AEA3]' : 'text-[#5A5245]'} 
+                                ${isEditMode && !item.checked ? 'cursor-text hover:text-[#7A9874] hover:underline decoration-dashed underline-offset-4' : ''}`}
                               onClick={(e) => {
                                 if (isEditMode && !item.checked) {
-                                  e.stopPropagation();
-                                  setEditingItemId(item.id);
-                                  setEditItemValue(item.name);
+                                  e.stopPropagation(); setEditingItemId(item.id); setEditItemValue(item.name);
                                 }
                               }}
                             >
                               {item.name}
                             </span>
                           )}
-
                         </div>
 
-                        {/* 右側工具區 */}
+                        {/* 右側箭頭或編輯工具 */}
                         <div className="flex items-center flex-shrink-0 ml-2">
                           {isEditMode ? (
                             <>
-                              {/* 拖曳把手 */}
-                              <div className="drag-handle p-1.5 text-[#BCC7B8] cursor-grab active:cursor-grabbing hover:text-[#7A9874] transition-colors mr-1 touch-none">
-                                <GripLines className="w-4 h-4" />
+                              <div className="drag-handle p-1.5 text-[#C2BDB4] cursor-grab active:cursor-grabbing hover:text-[#5A5245] transition-colors mr-1 touch-none">
+                                <GripLines className="w-3.5 h-3.5" />
                               </div>
-                              {/* 刪除按鈕 */}
-                              <button onClick={(e) => { e.stopPropagation(); deleteItem(activeCategory.id, item.id); }} className="bg-[#FFF4F2] p-1.5 rounded-full text-[#C78B73]">
-                                <Trash2 className="w-3.5 h-3.5" />
+                              <button onClick={(e) => { e.stopPropagation(); deleteItem(activeCategory.id, item.id); }} className="bg-white border border-[#EBE9E0] p-1 rounded-full text-[#C78B73] shadow-sm active:scale-90 transition-transform">
+                                <Trash2 className="w-3 h-3" />
                               </button>
                             </>
                           ) : (
-                            <div className="text-[#879383]">
-                              {item.checked ? <div className="bg-[#7A9874]/15 p-1 rounded-full"><Check className="text-[#7A9874] w-3.5 h-3.5" /></div> : <ChevronDown className="w-4 h-4 opacity-40" />}
+                            <div className="text-[#C2BDB4] pr-1">
+                              {/* 淡淡的向左箭頭 */}
+                              <ArrowLeft className="w-[16px] h-[16px] opacity-40" />
                             </div>
                           )}
                         </div>
-
                       </div>
                     </div>
-                  );
-                })}
+                  ))}
 
-                {/* 新增細項區塊保持在底部 (不受排序影響) */}
-                {isEditMode && (
-                  <div className="relative pl-4 mt-4 ignore-drag">
-                     <div className="absolute -left-[6px] top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border-[2px] border-[#FCFCF9] bg-[#E8ECE5]"></div>
-                     <div className="bg-white/60 backdrop-blur-sm rounded-[16px] pl-3 pr-1 py-1 flex items-center border-[1.5px] border-dashed border-[#D5DFD2]">
-                        <Plus className="w-3.5 h-3.5 text-[#A3ABA0] mr-1.5" />
-                        <input type="text" placeholder="新增用品..." className="flex-1 bg-transparent border-none focus:outline-none text-[14px] font-bold text-[#525A4E] py-1 tracking-wider" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addItem(activeCategory.id)} />
-                        <button onClick={() => addItem(activeCategory.id)} className="bg-[#7A9874] text-white p-1.5 rounded-full shadow-sm">
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                     </div>
-                  </div>
-                )}
+                  {/* 新增細項輸入框 (僅編輯模式顯示) */}
+                  {isEditMode && (
+                    <div className="relative ignore-drag mt-3.5">
+                       <div className="bg-[#FAF9F6] rounded-[14px] pl-3 pr-1 py-1 flex items-center border-[1.5px] border-dashed border-[#EBE9E0]">
+                          <Plus className="w-3.5 h-3.5 text-[#A89F91] mr-1.5 flex-shrink-0" />
+                          <input type="text" placeholder="新增待辦事項..." className="flex-1 bg-transparent border-none focus:outline-none text-[13.5px] font-bold text-[#5A5245] py-1.5 tracking-wider placeholder-[#C2BDB4]" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addItem(activeCategory.id)} />
+                          <button onClick={() => addItem(activeCategory.id)} className="bg-[#5A5245] text-white p-1.5 rounded-lg shadow-sm hover:bg-[#4A4338] transition-colors active:scale-95">
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                       </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
