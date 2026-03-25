@@ -135,6 +135,7 @@
         db.collection('checklists').doc('haohao_baby_list').set(newData);
       };
 
+      // 標籤 (Tabs) 的拖曳處理
       useEffect(() => {
         if (!isEditMode || !tabsRef.current) return;
         sortableTabsRef.current = Sortable.create(tabsRef.current, {
@@ -142,10 +143,16 @@
           filter: '.ignore-drag, input, button', preventOnFilter: false, ghostClass: 'sortable-ghost',
           onEnd: (evt) => {
             if (evt.oldIndex === evt.newIndex) return;
-            const itemEl = evt.item; const parent = evt.from;
-            const siblings = Array.from(parent.children).filter(c => c !== itemEl && !c.classList.contains('ignore-drag'));
-            if (evt.oldIndex < siblings.length) parent.insertBefore(itemEl, siblings[evt.oldIndex]);
-            else parent.appendChild(itemEl);
+            
+            // 安全還原 DOM (防止 React 當機)
+            const itemEl = evt.item; 
+            const parent = evt.from;
+            if (evt.oldIndex < evt.newIndex) {
+              parent.insertBefore(itemEl, parent.children[evt.oldIndex]);
+            } else {
+              parent.insertBefore(itemEl, parent.children[evt.oldIndex + 1]);
+            }
+
             setListData(prevData => {
               const newCats = Array.from(prevData.categories);
               const [moved] = newCats.splice(evt.oldIndex, 1);
@@ -159,16 +166,23 @@
         return () => { if (sortableTabsRef.current) sortableTabsRef.current.destroy(); };
       }, [isEditMode]);
 
+      // 細項 (Items) 的拖曳處理
       useEffect(() => {
         if (!isEditMode || !itemsRef.current) return;
         sortableItemsRef.current = Sortable.create(itemsRef.current, {
           animation: 200, handle: '.drag-handle', filter: '.ignore-drag, input, button', preventOnFilter: false, ghostClass: 'sortable-ghost',
           onEnd: (evt) => {
             if (evt.oldIndex === evt.newIndex) return;
-            const itemEl = evt.item; const parent = evt.from;
-            const siblings = Array.from(parent.children).filter(c => c !== itemEl && !c.classList.contains('ignore-drag'));
-            if (evt.oldIndex < siblings.length) parent.insertBefore(itemEl, siblings[evt.oldIndex]);
-            else parent.appendChild(itemEl);
+            
+            // 安全還原 DOM (防止 React 當機)
+            const itemEl = evt.item; 
+            const parent = evt.from;
+            if (evt.oldIndex < evt.newIndex) {
+              parent.insertBefore(itemEl, parent.children[evt.oldIndex]);
+            } else {
+              parent.insertBefore(itemEl, parent.children[evt.oldIndex + 1]);
+            }
+
             setListData(prevData => {
               const newData = { ...prevData };
               const category = newData.categories.find(c => c.id === activeCategoryId);
@@ -336,7 +350,6 @@
                 </div>
               ))}
               
-              {/* 修復：將邊框移到外層容器，確保形狀完整不斷開 */}
               {isEditMode && (
                 <div className="shrink-0 flex items-center ignore-drag bg-white border border-[#EBE9E0] shadow-sm rounded-full overflow-hidden h-[26px]">
                   <input 
@@ -374,7 +387,7 @@
             {activeCategory && (
               <div className="bg-white rounded-[20px] shadow-[0_4px_20px_rgba(0,0,0,0.04)] mt-4 p-3.5 sm:p-4 border-[5px] border-white min-h-[40vh]">
                 
-                {/* 細項清單 */}
+                {/* 細項清單 (這層現在只放可拖曳的項目) */}
                 <div className="space-y-2.5" ref={itemsRef}>
                   {activeCategory.items.map((item) => (
                     <div key={item.id} className="relative group">
@@ -440,20 +453,21 @@
                       </div>
                     </div>
                   ))}
-
-                  {/* 新增細項輸入框 (僅編輯模式顯示) */}
-                  {isEditMode && (
-                    <div className="relative ignore-drag mt-3.5">
-                       <div className="bg-[#FAF9F6] rounded-[14px] pl-3 pr-1 py-1 flex items-center border-[1.5px] border-dashed border-[#EBE9E0]">
-                          <Plus className="w-3.5 h-3.5 text-[#A89F91] mr-1.5 flex-shrink-0" />
-                          <input type="text" placeholder="新增待辦事項..." className="flex-1 bg-transparent border-none focus:outline-none text-[13.5px] font-bold text-[#5A5245] py-1.5 tracking-wider placeholder-[#C2BDB4]" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addItem(activeCategory.id)} />
-                          <button onClick={() => addItem(activeCategory.id)} className="bg-[#5A5245] text-white p-1.5 rounded-lg shadow-sm hover:bg-[#4A4338] transition-colors active:scale-95">
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                       </div>
-                    </div>
-                  )}
                 </div>
+
+                {/* 新增細項輸入框 (完全獨立在 itemsRef 之外，確保永遠置底且不受拖曳干擾) */}
+                {isEditMode && (
+                  <div className="mt-3.5">
+                     <div className="bg-[#FAF9F6] rounded-[14px] pl-3 pr-1 py-1 flex items-center border-[1.5px] border-dashed border-[#EBE9E0]">
+                        <Plus className="w-3.5 h-3.5 text-[#A89F91] mr-1.5 flex-shrink-0" />
+                        <input type="text" placeholder="新增待辦事項..." className="flex-1 bg-transparent border-none focus:outline-none text-[13.5px] font-bold text-[#5A5245] py-1.5 tracking-wider placeholder-[#C2BDB4]" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addItem(activeCategory.id)} />
+                        <button onClick={() => addItem(activeCategory.id)} className="bg-[#5A5245] text-white p-1.5 rounded-lg shadow-sm hover:bg-[#4A4338] transition-colors active:scale-95">
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                     </div>
+                  </div>
+                )}
+                
               </div>
             )}
           </div>
