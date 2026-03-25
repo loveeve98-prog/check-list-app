@@ -137,14 +137,14 @@
         db.collection('checklists').doc('haohao_baby_list').set(newData); // 背景寫入雲端
       };
 
-      // 優化: 標籤 (Tabs) 拖曳處理 - 解決 React DOM 衝突當機
+      // 優化: 標籤 (Tabs) 拖曳處理 - 解決 React DOM 衝突當機與修復拖曳阻擋問題
       useEffect(() => {
         if (!isEditMode || !tabsRef.current) return;
         let nextSibling = null;
         
         sortableTabsRef.current = Sortable.create(tabsRef.current, {
           animation: 200, delay: 200, delayOnTouchOnly: true, direction: 'horizontal',
-          filter: '.ignore-drag, input, button', preventOnFilter: false, ghostClass: 'sortable-ghost',
+          filter: '.ignore-drag, input', preventOnFilter: false, ghostClass: 'sortable-ghost',
           onStart: (evt) => {
             // 記下拖曳前的相鄰元素
             nextSibling = evt.item.nextElementSibling;
