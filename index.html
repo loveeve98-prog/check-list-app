@@ -26,7 +26,7 @@
     .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
     .pt-safe { padding-top: env(safe-area-inset-top); }
 
-    .sortable-ghost { opacity: 0.4; transform: scale(0.98); }
+    .sortable-ghost { opacity: 0.3; transform: scale(0.98); background-color: #F8F7F2; border: 1.5px dashed #C2BDB4; }
     .sortable-drag { cursor: grabbing !important; }
 
     /* 清單區域的日系點點背景 (縮小尺寸) */
@@ -95,6 +95,7 @@
       const [loading, setLoading] = useState(true);
       const [isEditMode, setIsEditMode] = useState(false);
       const [activeCategoryId, setActiveCategoryId] = useState('');
+      
       const [newCategoryName, setNewCategoryName] = useState('');
       const [newItemName, setNewItemName] = useState('');
       
@@ -108,18 +109,18 @@
       const sortableTabsRef = useRef(null);
       const sortableItemsRef = useRef(null);
 
+      // 初始化與監聽 Firebase
       useEffect(() => {
         const docRef = db.collection('checklists').doc('haohao_baby_list');
         const unsubscribe = docRef.onSnapshot((docSnap) => {
           if (docSnap.exists) {
             const data = docSnap.data();
             setListData(data);
-            if (data.categories?.length > 0) {
-              setActiveCategoryId(prevId => {
-                const stillExists = data.categories.find(c => c.id === prevId);
-                return stillExists ? prevId : data.categories[0].id;
-              });
-            }
+            // 確保有預設選取的分類
+            setActiveCategoryId(prevId => {
+              const stillExists = data.categories?.find(c => c.id === prevId);
+              return stillExists ? prevId : (data.categories?.[0]?.id || '');
+            });
           } else {
             docRef.set(defaultData);
             setListData(defaultData);
@@ -130,29 +131,35 @@
         return () => unsubscribe();
       }, []);
 
+      // 優化後的資料更新函數 (樂觀更新 + 寫入 Firebase)
       const updateData = (newData) => {
-        setListData(newData);
-        db.collection('checklists').doc('haohao_baby_list').set(newData);
+        setListData(newData); // 畫面即時反應
+        db.collection('checklists').doc('haohao_baby_list').set(newData); // 背景寫入雲端
       };
 
-      // 標籤 (Tabs) 的拖曳處理
+      // 優化: 標籤 (Tabs) 拖曳處理 - 解決 React DOM 衝突當機
       useEffect(() => {
         if (!isEditMode || !tabsRef.current) return;
+        let nextSibling = null;
+        
         sortableTabsRef.current = Sortable.create(tabsRef.current, {
           animation: 200, delay: 200, delayOnTouchOnly: true, direction: 'horizontal',
           filter: '.ignore-drag, input, button', preventOnFilter: false, ghostClass: 'sortable-ghost',
+          onStart: (evt) => {
+            // 記下拖曳前的相鄰元素
+            nextSibling = evt.item.nextElementSibling;
+          },
           onEnd: (evt) => {
             if (evt.oldIndex === evt.newIndex) return;
             
-            // 安全還原 DOM (防止 React 當機)
-            const itemEl = evt.item; 
-            const parent = evt.from;
-            if (evt.oldIndex < evt.newIndex) {
-              parent.insertBefore(itemEl, parent.children[evt.oldIndex]);
+            // 【核心防當機邏輯】: 在 React 介入前，將 DOM 偷偷塞回原位
+            if (nextSibling) {
+              evt.from.insertBefore(evt.item, nextSibling);
             } else {
-              parent.insertBefore(itemEl, parent.children[evt.oldIndex + 1]);
+              evt.from.appendChild(evt.item);
             }
 
+            // 更新 React State，讓 React 自己決定最終畫面長相
             setListData(prevData => {
               const newCats = Array.from(prevData.categories);
               const [moved] = newCats.splice(evt.oldIndex, 1);
@@ -166,21 +173,24 @@
         return () => { if (sortableTabsRef.current) sortableTabsRef.current.destroy(); };
       }, [isEditMode]);
 
-      // 細項 (Items) 的拖曳處理
+      // 優化: 細項 (Items) 拖曳處理 - 解決 React DOM 衝突當機
       useEffect(() => {
         if (!isEditMode || !itemsRef.current) return;
+        let nextSibling = null;
+
         sortableItemsRef.current = Sortable.create(itemsRef.current, {
           animation: 200, handle: '.drag-handle', filter: '.ignore-drag, input, button', preventOnFilter: false, ghostClass: 'sortable-ghost',
+          onStart: (evt) => {
+            nextSibling = evt.item.nextElementSibling;
+          },
           onEnd: (evt) => {
             if (evt.oldIndex === evt.newIndex) return;
             
-            // 安全還原 DOM (防止 React 當機)
-            const itemEl = evt.item; 
-            const parent = evt.from;
-            if (evt.oldIndex < evt.newIndex) {
-              parent.insertBefore(itemEl, parent.children[evt.oldIndex]);
+            // 【核心防當機邏輯】: 復原 DOM
+            if (nextSibling) {
+              evt.from.insertBefore(evt.item, nextSibling);
             } else {
-              parent.insertBefore(itemEl, parent.children[evt.oldIndex + 1]);
+              evt.from.appendChild(evt.item);
             }
 
             setListData(prevData => {
@@ -385,10 +395,10 @@
 
             {/* 手帳風：純色紙張背景與清單區域 */}
             {activeCategory && (
-              <div className="bg-white rounded-[20px] shadow-[0_4px_20px_rgba(0,0,0,0.04)] mt-4 p-3.5 sm:p-4 border-[5px] border-white min-h-[40vh]">
+              <div className="bg-white rounded-[20px] shadow-[0_4px_20px_rgba(0,0,0,0.04)] mt-4 p-3.5 sm:p-4 border-[5px] border-white min-h-[40vh] flex flex-col">
                 
-                {/* 細項清單 (這層現在只放可拖曳的項目) */}
-                <div className="space-y-2.5" ref={itemsRef}>
+                {/* 細項清單 (可拖曳區塊，與新增欄完全隔離) */}
+                <div className="space-y-2.5 flex-1" ref={itemsRef}>
                   {activeCategory.items.map((item) => (
                     <div key={item.id} className="relative group">
                       <div onClick={() => !isEditMode && toggleItem(activeCategory.id, item.id)} className={`bg-[#FAF9F6] rounded-[14px] pl-3.5 pr-2.5 py-3 flex items-center justify-between transition-all ${!isEditMode ? 'cursor-pointer active:scale-[0.98]' : ''}`}>
@@ -455,13 +465,23 @@
                   ))}
                 </div>
 
-                {/* 新增細項輸入框 (完全獨立在 itemsRef 之外，確保永遠置底且不受拖曳干擾) */}
+                {/* 新增細項輸入框 (獨立擺放，確保永遠在最底部不受干擾) */}
                 {isEditMode && (
-                  <div className="mt-3.5">
-                     <div className="bg-[#FAF9F6] rounded-[14px] pl-3 pr-1 py-1 flex items-center border-[1.5px] border-dashed border-[#EBE9E0]">
+                  <div className="mt-4 pt-3 border-t-[1.5px] border-dashed border-[#F0EFEA]">
+                     <div className="bg-[#FAF9F6] rounded-[14px] pl-3 pr-1 py-1 flex items-center border-[1.5px] border-dashed border-[#EBE9E0] shadow-sm">
                         <Plus className="w-3.5 h-3.5 text-[#A89F91] mr-1.5 flex-shrink-0" />
-                        <input type="text" placeholder="新增待辦事項..." className="flex-1 bg-transparent border-none focus:outline-none text-[13.5px] font-bold text-[#5A5245] py-1.5 tracking-wider placeholder-[#C2BDB4]" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addItem(activeCategory.id)} />
-                        <button onClick={() => addItem(activeCategory.id)} className="bg-[#5A5245] text-white p-1.5 rounded-lg shadow-sm hover:bg-[#4A4338] transition-colors active:scale-95">
+                        <input 
+                          type="text" 
+                          placeholder="新增待辦事項..." 
+                          className="flex-1 bg-transparent border-none focus:outline-none text-[13.5px] font-bold text-[#5A5245] py-1.5 tracking-wider placeholder-[#C2BDB4]" 
+                          value={newItemName} 
+                          onChange={(e) => setNewItemName(e.target.value)} 
+                          onKeyPress={(e) => e.key === 'Enter' && addItem(activeCategory.id)} 
+                        />
+                        <button 
+                          onClick={() => addItem(activeCategory.id)} 
+                          className="bg-[#5A5245] text-white p-1.5 rounded-lg shadow-sm hover:bg-[#4A4338] transition-colors active:scale-95"
+                        >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
                      </div>
