@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="HAO-HAO">
-  <title>HAO-HAO Check List</title>
+  <meta name="apple-mobile-web-app-title" content="CHECK LIST">
+  <title>CHECK LIST</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -28,13 +28,6 @@
 
     .sortable-ghost { opacity: 0.3; transform: scale(0.98); background-color: #F8F7F2; border: 1.5px dashed #C2BDB4; }
     .sortable-drag { cursor: grabbing !important; }
-
-    /* 清單區域的日系點點背景 (縮小尺寸) */
-    .bg-dot-pattern {
-      background-color: #F8F7F2;
-      background-image: radial-gradient(#DEDCD0 1.5px, transparent 1.5px);
-      background-size: 18px 18px;
-    }
   </style>
 </head>
 <body class="bg-white">
@@ -61,7 +54,7 @@
     const db = firebase.firestore();
     // ==========================================
 
-    // 圖示庫
+    // --- 圖示庫元件 ---
     const Icon = ({ path, className = "w-3.5 h-3.5", strokeWidth = 2.5 }) => (
       <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={strokeWidth}>
         <path strokeLinecap="round" strokeLinejoin="round" d={path} />
@@ -75,6 +68,7 @@
     const Unlock = ({className}) => <Icon className={className} path="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />;
     const X = ({className}) => <Icon className={className} path="M6 18L18 6M6 6l12 12" />;
     const GripLines = ({className}) => <Icon className={className} path="M4 9h16M4 15h16" strokeWidth={2} />;
+    const Folder = ({className}) => <Icon className={className} path="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" strokeWidth={2.5} />;
     const ArrowLeft = ({className, strokeWidth = 2.5}) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
         <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -83,19 +77,25 @@
 
     const defaultData = {
       categories: [
-        { id: 'c1', name: '換尿布', items: [{ id: 'i1_1', name: '尿布 (3-5片)', checked: true }, { id: 'i1_2', name: '濕紙巾', checked: false }, { id: 'i1_3', name: '屁屁膏', checked: false }] },
-        { id: 'c2', name: '餵食', items: [{ id: 'i2_1', name: '奶瓶', checked: false }, { id: 'i2_2', name: '奶粉 (分裝盒)', checked: false }, { id: 'i2_3', name: '保溫瓶 (熱水)', checked: false }, { id: 'i2_4', name: '副食品/零食', checked: false }] }
+        { id: 'c1', name: '換尿布', items: [{ id: 'i1_1', name: '尿布 (3-5片)', checked: true }, { id: 'i1_2', name: '濕紙巾', checked: false }] },
+        { id: 'c2', name: '餵食', items: [{ id: 'i2_1', name: '奶瓶', checked: false }, { id: 'i2_2', name: '奶粉', checked: false }] }
       ]
     };
 
     const girlFontFamily = '"華康少女文字", "華康少女文字W5", "DFGirl-W5", "DFPGirl-W5", "Yomogi", "Kosugi Maru", sans-serif';
 
     function App() {
+      // --- 狀態管理 ---
+      const [groups, setGroups] = useState([]);
+      const [currentGroupId, setCurrentGroupId] = useState('');
       const [listData, setListData] = useState({ categories: [] });
+      
       const [loading, setLoading] = useState(true);
       const [isEditMode, setIsEditMode] = useState(false);
       const [activeCategoryId, setActiveCategoryId] = useState('');
       
+      const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+      const [newGroupInput, setNewGroupInput] = useState('');
       const [newCategoryName, setNewCategoryName] = useState('');
       const [newItemName, setNewItemName] = useState('');
       
@@ -104,19 +104,46 @@
       const [editingCategoryId, setEditingCategoryId] = useState(null);
       const [editCategoryValue, setEditCategoryValue] = useState('');
 
+      const [editingGroupId, setEditingGroupId] = useState(null);
+      const [editGroupValue, setEditGroupValue] = useState('');
+      const [groupToDelete, setGroupToDelete] = useState(null); // 新增：用於控制自訂刪除確認視窗
+      
+      // --- 參考物件 ---
+      const longPressTimer = useRef(null);
+      const isLongPressTriggered = useRef(false);
       const tabsRef = useRef(null);
       const itemsRef = useRef(null);
       const sortableTabsRef = useRef(null);
       const sortableItemsRef = useRef(null);
 
-      // 初始化與監聽 Firebase
+      // --- 核心邏輯：載入群組與清單 ---
       useEffect(() => {
-        const docRef = db.collection('checklists').doc('haohao_baby_list');
+        const metaRef = db.collection('app_metadata').doc('group_list');
+        const unsubMeta = metaRef.onSnapshot((docSnap) => {
+          if (docSnap.exists) {
+            const data = docSnap.data();
+            setGroups(data.groups || []);
+            if (data.groups && data.groups.length > 0 && !currentGroupId) {
+              setCurrentGroupId(data.groups[0].id);
+            }
+          } else {
+            const defaultGroups = [{ id: 'haohao_baby_list', name: '主清單' }];
+            metaRef.set({ groups: defaultGroups });
+            setGroups(defaultGroups);
+            setCurrentGroupId('haohao_baby_list');
+          }
+        });
+        return () => unsubMeta();
+      }, []);
+
+      useEffect(() => {
+        if (!currentGroupId) return;
+        setLoading(true);
+        const docRef = db.collection('checklists').doc(currentGroupId);
         const unsubscribe = docRef.onSnapshot((docSnap) => {
           if (docSnap.exists) {
             const data = docSnap.data();
             setListData(data);
-            // 確保有預設選取的分類
             setActiveCategoryId(prevId => {
               const stillExists = data.categories?.find(c => c.id === prevId);
               return stillExists ? prevId : (data.categories?.[0]?.id || '');
@@ -129,69 +156,99 @@
           setLoading(false);
         });
         return () => unsubscribe();
-      }, []);
+      }, [currentGroupId]);
 
-      // 優化後的資料更新函數 (樂觀更新 + 寫入 Firebase)
       const updateData = (newData) => {
-        setListData(newData); // 畫面即時反應
-        db.collection('checklists').doc('haohao_baby_list').set(newData); // 背景寫入雲端
+        setListData(newData);
+        if (currentGroupId) db.collection('checklists').doc(currentGroupId).set(newData);
       };
 
-      // 優化: 標籤 (Tabs) 拖曳處理 - 解決 React DOM 衝突當機與修復拖曳阻擋問題
+      // --- 群組操作 ---
+      const handleAddGroup = () => {
+        if (!newGroupInput.trim()) return;
+        const newId = `group_${Date.now()}`;
+        const updatedGroups = [...groups, { id: newId, name: newGroupInput.trim() }];
+        
+        db.collection('app_metadata').doc('group_list').set({ groups: updatedGroups });
+        db.collection('checklists').doc(newId).set(defaultData);
+        
+        setNewGroupInput('');
+        setCurrentGroupId(newId);
+        setIsGroupModalOpen(false);
+      };
+
+      // 觸發自訂刪除確認視窗
+      const handleDeleteGroupClick = (targetGroupId) => {
+        if (groups.length <= 1) return;
+        setGroupToDelete(targetGroupId); 
+      };
+
+      // 實際執行刪除群組
+      const confirmDeleteGroup = () => {
+        if (!groupToDelete) return;
+        const updatedGroups = groups.filter(g => g.id !== groupToDelete);
+        db.collection('app_metadata').doc('group_list').set({ groups: updatedGroups });
+        if (currentGroupId === groupToDelete) setCurrentGroupId(updatedGroups[0].id);
+        setGroupToDelete(null); // 關閉視窗
+      };
+
+      const saveEditedGroup = (groupId) => {
+        if (editGroupValue.trim()) {
+          const updatedGroups = groups.map(g => g.id === groupId ? { ...g, name: editGroupValue.trim() } : g);
+          db.collection('app_metadata').doc('group_list').set({ groups: updatedGroups });
+        }
+        setEditingGroupId(null);
+      };
+
+      const handlePressStart = (group) => {
+        isLongPressTriggered.current = false;
+        longPressTimer.current = setTimeout(() => {
+          isLongPressTriggered.current = true;
+          setEditingGroupId(group.id);
+          setEditGroupValue(group.name);
+        }, 500);
+      };
+
+      const handlePressEnd = () => {
+        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+      };
+
+      // --- 拖曳排序邏輯 (防當機機制) ---
       useEffect(() => {
         if (!isEditMode || !tabsRef.current) return;
         let nextSibling = null;
-        
         sortableTabsRef.current = Sortable.create(tabsRef.current, {
           animation: 200, delay: 200, delayOnTouchOnly: true, direction: 'horizontal',
-          filter: '.ignore-drag, input', preventOnFilter: false, ghostClass: 'sortable-ghost',
-          onStart: (evt) => {
-            // 記下拖曳前的相鄰元素
-            nextSibling = evt.item.nextElementSibling;
-          },
+          filter: '.ignore-drag, input, button', preventOnFilter: false, ghostClass: 'sortable-ghost',
+          onStart: (evt) => { nextSibling = evt.item.nextElementSibling; },
           onEnd: (evt) => {
             if (evt.oldIndex === evt.newIndex) return;
-            
-            // 【核心防當機邏輯】: 在 React 介入前，將 DOM 偷偷塞回原位
-            if (nextSibling) {
-              evt.from.insertBefore(evt.item, nextSibling);
-            } else {
-              evt.from.appendChild(evt.item);
-            }
+            if (nextSibling) evt.from.insertBefore(evt.item, nextSibling);
+            else evt.from.appendChild(evt.item);
 
-            // 更新 React State，讓 React 自己決定最終畫面長相
             setListData(prevData => {
               const newCats = Array.from(prevData.categories);
               const [moved] = newCats.splice(evt.oldIndex, 1);
               newCats.splice(evt.newIndex, 0, moved);
               const newData = { ...prevData, categories: newCats };
-              db.collection('checklists').doc('haohao_baby_list').set(newData);
+              if(currentGroupId) db.collection('checklists').doc(currentGroupId).set(newData);
               return newData;
             });
           }
         });
         return () => { if (sortableTabsRef.current) sortableTabsRef.current.destroy(); };
-      }, [isEditMode]);
+      }, [isEditMode, currentGroupId]);
 
-      // 優化: 細項 (Items) 拖曳處理 - 解決 React DOM 衝突當機
       useEffect(() => {
         if (!isEditMode || !itemsRef.current) return;
         let nextSibling = null;
-
         sortableItemsRef.current = Sortable.create(itemsRef.current, {
           animation: 200, handle: '.drag-handle', filter: '.ignore-drag, input, button', preventOnFilter: false, ghostClass: 'sortable-ghost',
-          onStart: (evt) => {
-            nextSibling = evt.item.nextElementSibling;
-          },
+          onStart: (evt) => { nextSibling = evt.item.nextElementSibling; },
           onEnd: (evt) => {
             if (evt.oldIndex === evt.newIndex) return;
-            
-            // 【核心防當機邏輯】: 復原 DOM
-            if (nextSibling) {
-              evt.from.insertBefore(evt.item, nextSibling);
-            } else {
-              evt.from.appendChild(evt.item);
-            }
+            if (nextSibling) evt.from.insertBefore(evt.item, nextSibling);
+            else evt.from.appendChild(evt.item);
 
             setListData(prevData => {
               const newData = { ...prevData };
@@ -201,22 +258,22 @@
                 const [moved] = newItems.splice(evt.oldIndex, 1);
                 newItems.splice(evt.newIndex, 0, moved);
                 category.items = newItems;
-                db.collection('checklists').doc('haohao_baby_list').set(newData);
+                if(currentGroupId) db.collection('checklists').doc(currentGroupId).set(newData);
               }
               return newData;
             });
           }
         });
         return () => { if (sortableItemsRef.current) sortableItemsRef.current.destroy(); };
-      }, [isEditMode, activeCategoryId]);
+      }, [isEditMode, activeCategoryId, currentGroupId]);
 
+      // --- 清單與項目操作 ---
       const toggleItem = (categoryId, itemId) => {
         const newData = { ...listData };
         const category = newData.categories.find(c => c.id === categoryId);
         if (category) {
           const item = category.items.find(i => i.id === itemId);
-          if (item) item.checked = !item.checked;
-          updateData(newData);
+          if (item) { item.checked = !item.checked; updateData(newData); }
         }
       };
 
@@ -293,6 +350,10 @@
 
       const toggleEditMode = () => { setIsEditMode(!isEditMode); setEditingItemId(null); setEditingCategoryId(null); };
 
+      // --- 渲染畫面 ---
+      const activeCategory = listData.categories?.find(c => c.id === activeCategoryId);
+      const currentGroupName = groups.find(g => g.id === currentGroupId)?.name || '未命名群組';
+
       if (loading) return (
         <div className="flex items-center justify-center min-h-screen text-[#5C554B] font-medium" style={{ fontFamily: girlFontFamily }}>
           <RefreshCw className="w-5 h-5 animate-spin mr-3 text-[#7A9874]" />
@@ -300,32 +361,39 @@
         </div>
       );
 
-      const activeCategory = listData.categories?.find(c => c.id === activeCategoryId);
-
       return (
         <div className="min-h-screen pb-24 pb-safe selection:bg-[#E6E4DD] text-[#5A5245]" style={{ fontFamily: girlFontFamily }}>
           
-          {/* 頂部標題 */}
+          {/* 🌟 頂部標題列 */}
           <div className="bg-white/90 backdrop-blur-md px-3.5 py-3.5 md:py-4 pt-safe sticky top-0 z-20 border-b border-[#EBE9E0] shadow-sm">
             <div className="max-w-lg mx-auto flex items-center justify-center relative min-h-[45px]">
+              
               <div className="flex flex-col items-center text-center">
-                <h1 className="text-[25px] text-[#4A5048] tracking-widest leading-[1]" style={{ fontWeight: 'bold' }}>
-                  HAO-HAO
+                <h1 className="text-[25px] text-[#4A5048] tracking-[0.05em] leading-[1]" style={{ fontWeight: 'bold' }}>
+                  CHECK LIST
                 </h1>
-                <h2 className="text-[18px] font-bold text-[#A89F91] leading-[1] mt-1">
-                  Check List
+                <h2 className="text-[14px] font-bold text-[#A89F91] leading-[1] mt-2 flex items-center justify-center">
+                  <span className="bg-[#FAF9F6] px-3 py-1 rounded-md border border-[#F0EFEA] tracking-widest">{currentGroupName}</span>
                 </h2>
               </div>
-              <button onClick={resetAllChecks} className="absolute right-0 flex items-center bg-[#F8F7F2] text-[#8F8475] px-2.5 py-1 sm:px-2.5 rounded-lg text-[11.5px] font-bold border border-[#EBE9E0] shadow-sm hover:bg-[#F0EFEA] active:scale-95 transition-all">
-                <RefreshCw className="w-3.5 h-3.5 mr-0 sm:mr-1" />
-                <span className="hidden sm:inline">重置</span>
-              </button>
+              
+              <div className="absolute right-0 flex items-center gap-1.5 sm:gap-2">
+                <button onClick={() => setIsGroupModalOpen(true)} className="flex items-center bg-[#F8F7F2] text-[#8F8475] px-2.5 py-1.5 sm:px-2.5 rounded-lg text-[11.5px] font-bold border border-[#EBE9E0] shadow-sm hover:bg-[#F0EFEA] active:scale-95 transition-all">
+                  <Folder className="w-3.5 h-3.5 mr-0 sm:mr-1" />
+                  <span className="hidden sm:inline">群組</span>
+                </button>
+                <button onClick={resetAllChecks} className="flex items-center bg-[#F8F7F2] text-[#8F8475] px-2.5 py-1.5 sm:px-2.5 rounded-lg text-[11.5px] font-bold border border-[#EBE9E0] shadow-sm hover:bg-[#F0EFEA] active:scale-95 transition-all">
+                  <RefreshCw className="w-3.5 h-3.5 mr-0 sm:mr-1" />
+                  <span className="hidden sm:inline">重置</span>
+                </button>
+              </div>
+
             </div>
           </div>
 
           <div className="max-w-lg mx-auto mt-3.5 px-3.5 sm:px-4">
             
-            {/* 上方標籤 Tabs */}
+            {/* 🌟 標籤分類列 (Tabs) */}
             <div className="flex overflow-x-auto gap-1.5 pb-1.5 pt-1 hide-scrollbar" ref={tabsRef}>
               {listData.categories?.map((cat) => (
                 <div key={cat.id} className="relative shrink-0">
@@ -381,7 +449,7 @@
               )}
             </div>
 
-            {/* 模式切換面板 */}
+            {/* 🌟 模式切換面板 */}
             <div className="mt-2.5 mb-3.5 bg-white rounded-[14px] p-2 flex justify-between items-center shadow-sm border border-[#F0EFEA]">
               <div className={`flex items-center font-bold text-[12.5px] ml-1.5 tracking-widest ${isEditMode ? 'text-[#C78B73]' : 'text-[#8F8475]'}`}>
                 {isEditMode ? <Unlock className="w-3.5 h-3.5 mr-1" /> : <Lock className="w-3.5 h-3.5 mr-1" />}
@@ -393,26 +461,23 @@
               </button>
             </div>
 
-            {/* 手帳風：純色紙張背景與清單區域 */}
+            {/* 🌟 清單主卡片 */}
             {activeCategory && (
               <div className="bg-white rounded-[20px] shadow-[0_4px_20px_rgba(0,0,0,0.04)] mt-4 p-3.5 sm:p-4 border-[5px] border-white min-h-[40vh] flex flex-col">
                 
-                {/* 細項清單 (可拖曳區塊，與新增欄完全隔離) */}
+                {/* 待辦項目清單 (可拖曳區塊) */}
                 <div className="space-y-2.5 flex-1" ref={itemsRef}>
                   {activeCategory.items.map((item) => (
                     <div key={item.id} className="relative group">
                       <div onClick={() => !isEditMode && toggleItem(activeCategory.id, item.id)} className={`bg-[#FAF9F6] rounded-[14px] pl-3.5 pr-2.5 py-3 flex items-center justify-between transition-all ${!isEditMode ? 'cursor-pointer active:scale-[0.98]' : ''}`}>
                         
                         <div className="flex items-center flex-1 pr-2">
-                          
-                          {/* 方形 Checkbox */}
                           <div onClick={(e) => { if(isEditMode) { e.stopPropagation(); toggleItem(activeCategory.id, item.id); } }} 
                                className={`w-[20px] h-[20px] rounded-[5px] mr-3 flex-shrink-0 flex items-center justify-center transition-all cursor-pointer
                                ${item.checked ? 'bg-[#7A9874] border-transparent shadow-sm' : 'bg-white border-[1.5px] border-[#C2BDB4]'}`}>
                             {item.checked && <Check className="w-3 h-3 text-white" />}
                           </div>
 
-                          {/* 項目文字 */}
                           {editingItemId === item.id ? (
                             <input
                               type="text" autoFocus
@@ -442,7 +507,6 @@
                           )}
                         </div>
 
-                        {/* 右側箭頭或編輯工具 */}
                         <div className="flex items-center flex-shrink-0 ml-2">
                           {isEditMode ? (
                             <>
@@ -455,7 +519,6 @@
                             </>
                           ) : (
                             <div className="text-[#C2BDB4] pr-1">
-                              {/* 淡淡的向左箭頭 */}
                               <ArrowLeft className="w-[16px] h-[16px] opacity-40" />
                             </div>
                           )}
@@ -465,7 +528,7 @@
                   ))}
                 </div>
 
-                {/* 新增細項輸入框 (獨立擺放，確保永遠在最底部不受干擾) */}
+                {/* 新增項目輸入框 (固定在最下方) */}
                 {isEditMode && (
                   <div className="mt-4 pt-3 border-t-[1.5px] border-dashed border-[#F0EFEA]">
                      <div className="bg-[#FAF9F6] rounded-[14px] pl-3 pr-1 py-1 flex items-center border-[1.5px] border-dashed border-[#EBE9E0] shadow-sm">
@@ -487,10 +550,123 @@
                      </div>
                   </div>
                 )}
-                
               </div>
             )}
           </div>
+
+          {/* 🌟 群組選擇彈出視窗 (Modal) */}
+          {isGroupModalOpen && (
+            <div className="fixed inset-0 bg-[#5A5245]/20 backdrop-blur-[2px] z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-[24px] w-full max-w-sm shadow-2xl border border-[#F0EFEA] overflow-hidden flex flex-col animate-[fadeIn_0.2s_ease-out]">
+                
+                <div className="px-5 py-4 border-b border-[#F0EFEA] flex justify-between items-center bg-[#FAF9F6]">
+                  <h3 className="font-bold text-[#5A5245] tracking-widest text-[16px] flex items-center">
+                    <Folder className="w-4 h-4 mr-2" /> 群組管理
+                  </h3>
+                  <button onClick={() => setIsGroupModalOpen(false)} className="text-[#A89F91] hover:text-[#5A5245] p-1 rounded-full hover:bg-white transition-colors">
+                    <X className="w-4 h-4"/>
+                  </button>
+                </div>
+                
+                <div className="p-4 max-h-[45vh] overflow-y-auto space-y-2.5 bg-white hide-scrollbar">
+                  {groups.map(group => (
+                     <div key={group.id} className="flex items-center gap-2 relative">
+                        {editingGroupId === group.id ? (
+                          <input
+                            autoFocus
+                            className="flex-1 px-4 py-3.5 rounded-[14px] font-bold tracking-wider text-[14.5px] border-[1.5px] border-[#7A9874] outline-none shadow-sm text-[#5A5245] bg-white"
+                            value={editGroupValue}
+                            onChange={(e) => setEditGroupValue(e.target.value)}
+                            onBlur={() => saveEditedGroup(group.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveEditedGroup(group.id);
+                              if (e.key === 'Escape') setEditingGroupId(null);
+                            }}
+                          />
+                        ) : (
+                          <button 
+                            onTouchStart={() => handlePressStart(group)}
+                            onTouchEnd={handlePressEnd}
+                            onTouchMove={handlePressEnd}
+                            onMouseDown={() => handlePressStart(group)}
+                            onMouseUp={handlePressEnd}
+                            onMouseLeave={handlePressEnd}
+                            style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
+                            onClick={(e) => {
+                              if (isLongPressTriggered.current) { e.preventDefault(); return; }
+                              setCurrentGroupId(group.id); 
+                              setIsGroupModalOpen(false); 
+                            }}
+                            className={`flex-1 text-left px-4 py-3.5 rounded-[14px] font-bold tracking-wider text-[14.5px] transition-all border shadow-sm flex items-center justify-between select-none
+                              ${currentGroupId === group.id ? 'bg-[#7A9874] text-white border-[#7A9874]' : 'bg-[#FAF9F6] text-[#5A5245] border-[#EBE9E0] hover:bg-[#F0EFEA]'}`}
+                          >
+                            <span>{group.name}</span>
+                            {currentGroupId === group.id && <Check className="w-4 h-4 text-white" />}
+                          </button>
+                        )}
+
+                        {groups.length > 1 && editingGroupId !== group.id && (
+                          <button onClick={() => handleDeleteGroupClick(group.id)} className="p-3.5 text-[#C2BDB4] hover:text-[#C78B73] transition-colors bg-[#FAF9F6] rounded-[14px] border border-[#EBE9E0] shadow-sm active:scale-95">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                     </div>
+                  ))}
+                  
+                  <div className="text-[12px] text-[#A89F91] text-center pt-2 flex items-center justify-center font-bold tracking-widest opacity-80">
+                    💡 提示：長按群組名稱可重新命名
+                  </div>
+                </div>
+
+                <div className="p-4 border-t border-[#F0EFEA] bg-[#FAF9F6]">
+                   <div className="flex items-center border-[1.5px] border-dashed border-[#C2BDB4] rounded-[14px] p-1 bg-white focus-within:border-[#7A9874] transition-colors shadow-sm">
+                      <input 
+                        type="text" 
+                        placeholder="新增群組 (如: 國內旅遊)" 
+                        className="flex-1 px-3 py-2 bg-transparent outline-none text-[13.5px] font-bold text-[#5A5245] placeholder-[#C2BDB4] tracking-wider"
+                        value={newGroupInput}
+                        onChange={e => setNewGroupInput(e.target.value)}
+                        onKeyPress={e => e.key === 'Enter' && handleAddGroup()}
+                      />
+                      <button onClick={handleAddGroup} className="bg-[#5A5245] text-white p-2 rounded-xl active:scale-95 transition-transform hover:bg-[#4A4338]">
+                        <Plus className="w-4 h-4"/>
+                      </button>
+                   </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* 🌟 刪除確認彈出視窗 (自訂防阻擋 Modal) */}
+          {groupToDelete && (
+            <div className="fixed inset-0 bg-[#5A5245]/40 backdrop-blur-[2px] z-[60] flex items-center justify-center p-4">
+              <div className="bg-white rounded-[20px] w-full max-w-[280px] shadow-2xl border border-[#F0EFEA] p-5 text-center">
+                <div className="w-12 h-12 bg-[#FFF4F2] rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Trash2 className="w-6 h-6 text-[#C78B73]" />
+                </div>
+                <h3 className="font-bold text-[#5A5245] text-[16px] mb-2 tracking-widest">確定要刪除嗎？</h3>
+                <p className="text-[#A89F91] text-[13px] mb-5 tracking-wider leading-relaxed">
+                  刪除群組後，裡面的所有<br/>待辦事項將會永久遺失喔！
+                </p>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setGroupToDelete(null)} 
+                    className="flex-1 py-2.5 rounded-xl font-bold text-[#8F8475] bg-[#F8F7F2] border border-[#EBE9E0] active:scale-95 transition-transform"
+                  >
+                    取消
+                  </button>
+                  <button 
+                    onClick={confirmDeleteGroup} 
+                    className="flex-1 py-2.5 rounded-xl font-bold text-white bg-[#C78B73] active:scale-95 transition-transform shadow-sm"
+                  >
+                    確認刪除
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       );
     }
