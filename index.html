@@ -28,6 +28,13 @@
 
     .sortable-ghost { opacity: 0.3; transform: scale(0.98); background-color: #F8F7F2; border: 1.5px dashed #C2BDB4; }
     .sortable-drag { cursor: grabbing !important; }
+
+    /* 清單區域的日系點點背景 (放大尺寸) */
+    .bg-dot-pattern {
+      background-color: #F8F7F2;
+      background-image: radial-gradient(#DEDCD0 1.5px, transparent 1.5px);
+      background-size: 20px 20px;
+    }
   </style>
 </head>
 <body class="bg-white">
@@ -55,7 +62,7 @@
     // ==========================================
 
     // --- 圖示庫元件 ---
-    const Icon = ({ path, className = "w-3.5 h-3.5", strokeWidth = 2.5 }) => (
+    const Icon = ({ path, className = "w-4 h-4", strokeWidth = 2.5 }) => (
       <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={strokeWidth}>
         <path strokeLinecap="round" strokeLinejoin="round" d={path} />
       </svg>
@@ -106,7 +113,7 @@
 
       const [editingGroupId, setEditingGroupId] = useState(null);
       const [editGroupValue, setEditGroupValue] = useState('');
-      const [groupToDelete, setGroupToDelete] = useState(null); // 新增：用於控制自訂刪除確認視窗
+      const [groupToDelete, setGroupToDelete] = useState(null); 
       
       // --- 參考物件 ---
       const longPressTimer = useRef(null);
@@ -177,19 +184,17 @@
         setIsGroupModalOpen(false);
       };
 
-      // 觸發自訂刪除確認視窗
       const handleDeleteGroupClick = (targetGroupId) => {
         if (groups.length <= 1) return;
         setGroupToDelete(targetGroupId); 
       };
 
-      // 實際執行刪除群組
       const confirmDeleteGroup = () => {
         if (!groupToDelete) return;
         const updatedGroups = groups.filter(g => g.id !== groupToDelete);
         db.collection('app_metadata').doc('group_list').set({ groups: updatedGroups });
         if (currentGroupId === groupToDelete) setCurrentGroupId(updatedGroups[0].id);
-        setGroupToDelete(null); // 關閉視窗
+        setGroupToDelete(null); 
       };
 
       const saveEditedGroup = (groupId) => {
@@ -213,7 +218,7 @@
         if (longPressTimer.current) clearTimeout(longPressTimer.current);
       };
 
-      // --- 拖曳排序邏輯 (防當機機制) ---
+      // --- 拖曳排序邏輯 ---
       useEffect(() => {
         if (!isEditMode || !tabsRef.current) return;
         let nextSibling = null;
@@ -357,7 +362,7 @@
       if (loading) return (
         <div className="flex items-center justify-center min-h-screen text-[#5C554B] font-medium" style={{ fontFamily: girlFontFamily }}>
           <RefreshCw className="w-5 h-5 animate-spin mr-3 text-[#7A9874]" />
-          <span className="text-[14.5px] tracking-wider">連線至雲端清單中...</span>
+          <span className="text-[15px] tracking-wider">連線至雲端清單中...</span>
         </div>
       );
 
@@ -365,25 +370,25 @@
         <div className="min-h-screen pb-24 pb-safe selection:bg-[#E6E4DD] text-[#5A5245]" style={{ fontFamily: girlFontFamily }}>
           
           {/* 🌟 頂部標題列 */}
-          <div className="bg-white/90 backdrop-blur-md px-3.5 py-3.5 md:py-4 pt-safe sticky top-0 z-20 border-b border-[#EBE9E0] shadow-sm">
-            <div className="max-w-lg mx-auto flex items-center justify-center relative min-h-[45px]">
+          <div className="bg-white/90 backdrop-blur-md px-4 py-4 md:py-5 pt-safe sticky top-0 z-20 border-b border-[#EBE9E0] shadow-sm">
+            <div className="max-w-lg mx-auto flex items-center justify-center relative min-h-[50px]">
               
               <div className="flex flex-col items-center text-center">
-                <h1 className="text-[25px] text-[#4A5048] tracking-[0.05em] leading-[1]" style={{ fontWeight: 'bold' }}>
+                <h1 className="text-[26px] text-[#4A5048] tracking-[0.05em] leading-[1]" style={{ fontWeight: 'bold' }}>
                   CHECK LIST
                 </h1>
-                <h2 className="text-[14px] font-bold text-[#A89F91] leading-[1] mt-2 flex items-center justify-center">
+                <h2 className="text-[15px] font-bold text-[#A89F91] leading-[1] mt-2 flex items-center justify-center">
                   <span className="bg-[#FAF9F6] px-3 py-1 rounded-md border border-[#F0EFEA] tracking-widest">{currentGroupName}</span>
                 </h2>
               </div>
               
-              <div className="absolute right-0 flex items-center gap-1.5 sm:gap-2">
-                <button onClick={() => setIsGroupModalOpen(true)} className="flex items-center bg-[#F8F7F2] text-[#8F8475] px-2.5 py-1.5 sm:px-2.5 rounded-lg text-[11.5px] font-bold border border-[#EBE9E0] shadow-sm hover:bg-[#F0EFEA] active:scale-95 transition-all">
-                  <Folder className="w-3.5 h-3.5 mr-0 sm:mr-1" />
+              <div className="absolute right-0 flex items-center gap-2">
+                <button onClick={() => setIsGroupModalOpen(true)} className="flex items-center bg-[#F8F7F2] text-[#8F8475] px-3 py-1.5 sm:px-3 rounded-xl text-[12px] font-bold border border-[#EBE9E0] shadow-sm hover:bg-[#F0EFEA] active:scale-95 transition-all">
+                  <Folder className="w-4 h-4 mr-0 sm:mr-1.5" />
                   <span className="hidden sm:inline">群組</span>
                 </button>
-                <button onClick={resetAllChecks} className="flex items-center bg-[#F8F7F2] text-[#8F8475] px-2.5 py-1.5 sm:px-2.5 rounded-lg text-[11.5px] font-bold border border-[#EBE9E0] shadow-sm hover:bg-[#F0EFEA] active:scale-95 transition-all">
-                  <RefreshCw className="w-3.5 h-3.5 mr-0 sm:mr-1" />
+                <button onClick={resetAllChecks} className="flex items-center bg-[#F8F7F2] text-[#8F8475] px-3 py-1.5 sm:px-3 rounded-xl text-[12px] font-bold border border-[#EBE9E0] shadow-sm hover:bg-[#F0EFEA] active:scale-95 transition-all">
+                  <RefreshCw className="w-4 h-4 mr-0 sm:mr-1.5" />
                   <span className="hidden sm:inline">重置</span>
                 </button>
               </div>
@@ -391,16 +396,16 @@
             </div>
           </div>
 
-          <div className="max-w-lg mx-auto mt-3.5 px-3.5 sm:px-4">
+          <div className="max-w-lg mx-auto mt-4 px-4 sm:px-5">
             
             {/* 🌟 標籤分類列 (Tabs) */}
-            <div className="flex overflow-x-auto gap-1.5 pb-1.5 pt-1 hide-scrollbar" ref={tabsRef}>
+            <div className="flex overflow-x-auto gap-2 pb-2 pt-1 hide-scrollbar" ref={tabsRef}>
               {listData.categories?.map((cat) => (
                 <div key={cat.id} className="relative shrink-0">
                   {editingCategoryId === cat.id ? (
                     <input
                       autoFocus
-                      className="w-16 px-2.5 py-1 rounded-full border border-[#7A9874] bg-white focus:outline-none text-[13.5px] font-bold text-[#5A5245] shadow-sm text-center"
+                      className="w-20 px-3 py-1.5 rounded-full border border-[#7A9874] bg-white focus:outline-none text-[14px] font-bold text-[#5A5245] shadow-sm text-center"
                       value={editCategoryValue}
                       onChange={(e) => setEditCategoryValue(e.target.value)}
                       onBlur={() => saveEditedCategory(cat.id)}
@@ -412,7 +417,7 @@
                   ) : (
                     <button 
                       onClick={() => handleCategoryClick(cat.id, cat.name)} 
-                      className={`px-3.5 py-1 rounded-full font-bold text-[13.5px] transition-all duration-300 tracking-widest flex items-center justify-center select-none shadow-sm
+                      className={`px-4 py-1.5 rounded-full font-bold text-[14px] transition-all duration-300 tracking-widest flex items-center justify-center select-none shadow-sm
                         ${activeCategoryId === cat.id ? 'bg-[#7A9874] text-white' : 'bg-white border border-[#EBE9E0] text-[#A89F91] hover:bg-[#F8F7F2]'}
                         ${isEditMode && activeCategoryId === cat.id ? 'underline decoration-dashed underline-offset-4' : ''}
                       `}
@@ -421,67 +426,67 @@
                     </button>
                   )}
                   {isEditMode && editingCategoryId !== cat.id && (
-                    <button onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); }} className="absolute -top-1 -right-1 bg-[#D1CCC2] text-white rounded-full p-1 shadow-sm z-10 hover:bg-[#A89F91] active:scale-90 ignore-drag border border-white">
-                      <X className="w-2 h-2 font-bold" />
+                    <button onClick={(e) => { e.stopPropagation(); deleteCategory(cat.id); }} className="absolute -top-1.5 -right-1.5 bg-[#D1CCC2] text-white rounded-full p-1 shadow-sm z-10 hover:bg-[#A89F91] active:scale-90 ignore-drag border border-white">
+                      <X className="w-2.5 h-2.5 font-bold" />
                     </button>
                   )}
                 </div>
               ))}
               
               {isEditMode && (
-                <div className="shrink-0 flex items-center ignore-drag bg-white border border-[#EBE9E0] shadow-sm rounded-full overflow-hidden h-[26px]">
+                <div className="shrink-0 flex items-center ignore-drag bg-white border border-[#EBE9E0] shadow-sm rounded-full overflow-hidden h-[30px]">
                   <input 
                     type="text" 
                     placeholder="新分類..." 
-                    className="w-16 pl-2.5 pr-1 py-1 bg-transparent focus:outline-none text-[12.5px] tracking-widest text-[#5A5245] font-bold" 
+                    className="w-20 pl-3 pr-1.5 py-1.5 bg-transparent focus:outline-none text-[13px] tracking-widest text-[#5A5245] font-bold" 
                     value={newCategoryName} 
                     onChange={(e) => setNewCategoryName(e.target.value)} 
                     onKeyPress={(e) => e.key === 'Enter' && addCategory()} 
                   />
-                  <div className="w-[1px] h-3.5 bg-[#EBE9E0]"></div>
+                  <div className="w-[1px] h-4 bg-[#EBE9E0]"></div>
                   <button 
                     onClick={addCategory} 
-                    className="px-2 py-1 bg-transparent text-[#A89F91] hover:text-[#5A5245] transition-colors flex items-center justify-center"
+                    className="px-2.5 py-1.5 bg-transparent text-[#A89F91] hover:text-[#5A5245] transition-colors flex items-center justify-center"
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-4 h-4" />
                   </button>
                 </div>
               )}
             </div>
 
             {/* 🌟 模式切換面板 */}
-            <div className="mt-2.5 mb-3.5 bg-white rounded-[14px] p-2 flex justify-between items-center shadow-sm border border-[#F0EFEA]">
-              <div className={`flex items-center font-bold text-[12.5px] ml-1.5 tracking-widest ${isEditMode ? 'text-[#C78B73]' : 'text-[#8F8475]'}`}>
-                {isEditMode ? <Unlock className="w-3.5 h-3.5 mr-1" /> : <Lock className="w-3.5 h-3.5 mr-1" />}
+            <div className="mt-3 mb-4 bg-white rounded-[16px] p-2.5 flex justify-between items-center shadow-sm border border-[#F0EFEA]">
+              <div className={`flex items-center font-bold text-[13px] ml-2 tracking-widest ${isEditMode ? 'text-[#C78B73]' : 'text-[#8F8475]'}`}>
+                {isEditMode ? <Unlock className="w-4 h-4 mr-1.5" /> : <Lock className="w-4 h-4 mr-1.5" />}
                 目前為{isEditMode ? '編輯' : '瀏覽'}模式
               </div>
-              <button onClick={toggleEditMode} className={`px-3.5 py-1 rounded-full text-white text-[11.5px] font-bold shadow-sm transition-all flex items-center tracking-widest active:scale-95 ${isEditMode ? 'bg-[#C78B73]' : 'bg-[#7A9874]'}`}>
-                {isEditMode ? <Unlock className="w-3 h-3 mr-1" /> : <Lock className="w-3 h-3 mr-1" />}
+              <button onClick={toggleEditMode} className={`px-4 py-1.5 rounded-full text-white text-[12px] font-bold shadow-sm transition-all flex items-center tracking-widest active:scale-95 ${isEditMode ? 'bg-[#C78B73]' : 'bg-[#7A9874]'}`}>
+                {isEditMode ? <Unlock className="w-3.5 h-3.5 mr-1.5" /> : <Lock className="w-3.5 h-3.5 mr-1.5" />}
                 {isEditMode ? '完成編輯' : '解鎖編輯'}
               </button>
             </div>
 
             {/* 🌟 清單主卡片 */}
             {activeCategory && (
-              <div className="bg-white rounded-[20px] shadow-[0_4px_20px_rgba(0,0,0,0.04)] mt-4 p-3.5 sm:p-4 border-[5px] border-white min-h-[40vh] flex flex-col">
+              <div className="bg-white rounded-[22px] shadow-[0_4px_20px_rgba(0,0,0,0.04)] mt-5 p-4 sm:p-5 border-[6px] border-white min-h-[40vh] flex flex-col">
                 
                 {/* 待辦項目清單 (可拖曳區塊) */}
-                <div className="space-y-2.5 flex-1" ref={itemsRef}>
+                <div className="space-y-3 flex-1" ref={itemsRef}>
                   {activeCategory.items.map((item) => (
                     <div key={item.id} className="relative group">
-                      <div onClick={() => !isEditMode && toggleItem(activeCategory.id, item.id)} className={`bg-[#FAF9F6] rounded-[14px] pl-3.5 pr-2.5 py-3 flex items-center justify-between transition-all ${!isEditMode ? 'cursor-pointer active:scale-[0.98]' : ''}`}>
+                      <div onClick={() => !isEditMode && toggleItem(activeCategory.id, item.id)} className={`bg-[#FAF9F6] rounded-[16px] pl-4 pr-3 py-3.5 flex items-center justify-between transition-all ${!isEditMode ? 'cursor-pointer active:scale-[0.98]' : ''}`}>
                         
                         <div className="flex items-center flex-1 pr-2">
                           <div onClick={(e) => { if(isEditMode) { e.stopPropagation(); toggleItem(activeCategory.id, item.id); } }} 
-                               className={`w-[20px] h-[20px] rounded-[5px] mr-3 flex-shrink-0 flex items-center justify-center transition-all cursor-pointer
+                               className={`w-[22px] h-[22px] rounded-[6px] mr-3.5 flex-shrink-0 flex items-center justify-center transition-all cursor-pointer
                                ${item.checked ? 'bg-[#7A9874] border-transparent shadow-sm' : 'bg-white border-[1.5px] border-[#C2BDB4]'}`}>
-                            {item.checked && <Check className="w-3 h-3 text-white" />}
+                            {item.checked && <Check className="w-3.5 h-3.5 text-white" />}
                           </div>
 
                           {editingItemId === item.id ? (
                             <input
                               type="text" autoFocus
-                              className="flex-1 bg-transparent border-b-[1.5px] border-[#7A9874] focus:outline-none text-[14.5px] font-bold text-[#5A5245] tracking-wider px-1 py-0.5"
+                              className="flex-1 bg-transparent border-b-[1.5px] border-[#7A9874] focus:outline-none text-[15px] font-bold text-[#5A5245] tracking-wider px-1 py-0.5"
                               value={editItemValue}
                               onChange={(e) => setEditItemValue(e.target.value)}
                               onBlur={() => saveEditedItem(activeCategory.id, item.id)}
@@ -493,7 +498,7 @@
                             />
                           ) : (
                             <span 
-                              className={`text-[14.5px] font-bold tracking-wider transition-all select-none
+                              className={`text-[15px] font-bold tracking-wider transition-all select-none
                                 ${item.checked ? 'line-through text-[#B5AEA3]' : 'text-[#5A5245]'} 
                                 ${isEditMode && !item.checked ? 'cursor-text hover:text-[#7A9874] hover:underline decoration-dashed underline-offset-4' : ''}`}
                               onClick={(e) => {
@@ -510,16 +515,16 @@
                         <div className="flex items-center flex-shrink-0 ml-2">
                           {isEditMode ? (
                             <>
-                              <div className="drag-handle p-1.5 text-[#C2BDB4] cursor-grab active:cursor-grabbing hover:text-[#5A5245] transition-colors mr-1 touch-none">
-                                <GripLines className="w-3.5 h-3.5" />
+                              <div className="drag-handle p-2 text-[#C2BDB4] cursor-grab active:cursor-grabbing hover:text-[#5A5245] transition-colors mr-1 touch-none">
+                                <GripLines className="w-4 h-4" />
                               </div>
-                              <button onClick={(e) => { e.stopPropagation(); deleteItem(activeCategory.id, item.id); }} className="bg-white border border-[#EBE9E0] p-1 rounded-full text-[#C78B73] shadow-sm active:scale-90 transition-transform">
-                                <Trash2 className="w-3 h-3" />
+                              <button onClick={(e) => { e.stopPropagation(); deleteItem(activeCategory.id, item.id); }} className="bg-white border border-[#EBE9E0] p-1.5 rounded-full text-[#C78B73] shadow-sm active:scale-90 transition-transform">
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </>
                           ) : (
                             <div className="text-[#C2BDB4] pr-1">
-                              <ArrowLeft className="w-[16px] h-[16px] opacity-40" />
+                              <ArrowLeft className="w-[18px] h-[18px] opacity-40" />
                             </div>
                           )}
                         </div>
@@ -528,24 +533,24 @@
                   ))}
                 </div>
 
-                {/* 新增項目輸入框 (固定在最下方) */}
+                {/* 新增項目輸入框 */}
                 {isEditMode && (
-                  <div className="mt-4 pt-3 border-t-[1.5px] border-dashed border-[#F0EFEA]">
-                     <div className="bg-[#FAF9F6] rounded-[14px] pl-3 pr-1 py-1 flex items-center border-[1.5px] border-dashed border-[#EBE9E0] shadow-sm">
-                        <Plus className="w-3.5 h-3.5 text-[#A89F91] mr-1.5 flex-shrink-0" />
+                  <div className="mt-5 pt-4 border-t-[1.5px] border-dashed border-[#F0EFEA]">
+                     <div className="bg-[#FAF9F6] rounded-[16px] pl-3.5 pr-1.5 py-1.5 flex items-center border-[1.5px] border-dashed border-[#EBE9E0] shadow-sm">
+                        <Plus className="w-4 h-4 text-[#A89F91] mr-2 flex-shrink-0" />
                         <input 
                           type="text" 
                           placeholder="新增待辦事項..." 
-                          className="flex-1 bg-transparent border-none focus:outline-none text-[13.5px] font-bold text-[#5A5245] py-1.5 tracking-wider placeholder-[#C2BDB4]" 
+                          className="flex-1 bg-transparent border-none focus:outline-none text-[14px] font-bold text-[#5A5245] py-2 tracking-wider placeholder-[#C2BDB4]" 
                           value={newItemName} 
                           onChange={(e) => setNewItemName(e.target.value)} 
                           onKeyPress={(e) => e.key === 'Enter' && addItem(activeCategory.id)} 
                         />
                         <button 
                           onClick={() => addItem(activeCategory.id)} 
-                          className="bg-[#5A5245] text-white p-1.5 rounded-lg shadow-sm hover:bg-[#4A4338] transition-colors active:scale-95"
+                          className="bg-[#5A5245] text-white p-2 rounded-xl shadow-sm hover:bg-[#4A4338] transition-colors active:scale-95"
                         >
-                          <Plus className="w-3.5 h-3.5" />
+                          <Plus className="w-4 h-4" />
                         </button>
                      </div>
                   </div>
@@ -560,7 +565,7 @@
               <div className="bg-white rounded-[24px] w-full max-w-sm shadow-2xl border border-[#F0EFEA] overflow-hidden flex flex-col animate-[fadeIn_0.2s_ease-out]">
                 
                 <div className="px-5 py-4 border-b border-[#F0EFEA] flex justify-between items-center bg-[#FAF9F6]">
-                  <h3 className="font-bold text-[#5A5245] tracking-widest text-[16px] flex items-center">
+                  <h3 className="font-bold text-[#5A5245] tracking-widest text-[17px] flex items-center">
                     <Folder className="w-4 h-4 mr-2" /> 群組管理
                   </h3>
                   <button onClick={() => setIsGroupModalOpen(false)} className="text-[#A89F91] hover:text-[#5A5245] p-1 rounded-full hover:bg-white transition-colors">
@@ -568,13 +573,13 @@
                   </button>
                 </div>
                 
-                <div className="p-4 max-h-[45vh] overflow-y-auto space-y-2.5 bg-white hide-scrollbar">
+                <div className="p-4 max-h-[50vh] overflow-y-auto space-y-3 bg-white hide-scrollbar">
                   {groups.map(group => (
                      <div key={group.id} className="flex items-center gap-2 relative">
                         {editingGroupId === group.id ? (
                           <input
                             autoFocus
-                            className="flex-1 px-4 py-3.5 rounded-[14px] font-bold tracking-wider text-[14.5px] border-[1.5px] border-[#7A9874] outline-none shadow-sm text-[#5A5245] bg-white"
+                            className="flex-1 px-4 py-4 rounded-[16px] font-bold tracking-wider text-[15px] border-[1.5px] border-[#7A9874] outline-none shadow-sm text-[#5A5245] bg-white"
                             value={editGroupValue}
                             onChange={(e) => setEditGroupValue(e.target.value)}
                             onBlur={() => saveEditedGroup(group.id)}
@@ -597,7 +602,7 @@
                               setCurrentGroupId(group.id); 
                               setIsGroupModalOpen(false); 
                             }}
-                            className={`flex-1 text-left px-4 py-3.5 rounded-[14px] font-bold tracking-wider text-[14.5px] transition-all border shadow-sm flex items-center justify-between select-none
+                            className={`flex-1 text-left px-4 py-4 rounded-[16px] font-bold tracking-wider text-[15px] transition-all border shadow-sm flex items-center justify-between select-none
                               ${currentGroupId === group.id ? 'bg-[#7A9874] text-white border-[#7A9874]' : 'bg-[#FAF9F6] text-[#5A5245] border-[#EBE9E0] hover:bg-[#F0EFEA]'}`}
                           >
                             <span>{group.name}</span>
@@ -606,29 +611,29 @@
                         )}
 
                         {groups.length > 1 && editingGroupId !== group.id && (
-                          <button onClick={() => handleDeleteGroupClick(group.id)} className="p-3.5 text-[#C2BDB4] hover:text-[#C78B73] transition-colors bg-[#FAF9F6] rounded-[14px] border border-[#EBE9E0] shadow-sm active:scale-95">
+                          <button onClick={() => handleDeleteGroupClick(group.id)} className="p-4 text-[#C2BDB4] hover:text-[#C78B73] transition-colors bg-[#FAF9F6] rounded-[16px] border border-[#EBE9E0] shadow-sm active:scale-95">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         )}
                      </div>
                   ))}
                   
-                  <div className="text-[12px] text-[#A89F91] text-center pt-2 flex items-center justify-center font-bold tracking-widest opacity-80">
+                  <div className="text-[13px] text-[#A89F91] text-center pt-2.5 flex items-center justify-center font-bold tracking-widest opacity-80">
                     💡 提示：長按群組名稱可重新命名
                   </div>
                 </div>
 
                 <div className="p-4 border-t border-[#F0EFEA] bg-[#FAF9F6]">
-                   <div className="flex items-center border-[1.5px] border-dashed border-[#C2BDB4] rounded-[14px] p-1 bg-white focus-within:border-[#7A9874] transition-colors shadow-sm">
+                   <div className="flex items-center border-[2px] border-dashed border-[#C2BDB4] rounded-[16px] p-1.5 bg-white focus-within:border-[#7A9874] transition-colors shadow-sm">
                       <input 
                         type="text" 
                         placeholder="新增群組 (如: 國內旅遊)" 
-                        className="flex-1 px-3 py-2 bg-transparent outline-none text-[13.5px] font-bold text-[#5A5245] placeholder-[#C2BDB4] tracking-wider"
+                        className="flex-1 px-4 py-2.5 bg-transparent outline-none text-[14px] font-bold text-[#5A5245] placeholder-[#C2BDB4] tracking-wider"
                         value={newGroupInput}
                         onChange={e => setNewGroupInput(e.target.value)}
                         onKeyPress={e => e.key === 'Enter' && handleAddGroup()}
                       />
-                      <button onClick={handleAddGroup} className="bg-[#5A5245] text-white p-2 rounded-xl active:scale-95 transition-transform hover:bg-[#4A4338]">
+                      <button onClick={handleAddGroup} className="bg-[#5A5245] text-white p-2.5 rounded-xl active:scale-95 transition-transform hover:bg-[#4A4338]">
                         <Plus className="w-4 h-4"/>
                       </button>
                    </div>
@@ -638,27 +643,27 @@
             </div>
           )}
 
-          {/* 🌟 刪除確認彈出視窗 (自訂防阻擋 Modal) */}
+          {/* 🌟 刪除確認彈出視窗 */}
           {groupToDelete && (
             <div className="fixed inset-0 bg-[#5A5245]/40 backdrop-blur-[2px] z-[60] flex items-center justify-center p-4">
-              <div className="bg-white rounded-[20px] w-full max-w-[280px] shadow-2xl border border-[#F0EFEA] p-5 text-center">
-                <div className="w-12 h-12 bg-[#FFF4F2] rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Trash2 className="w-6 h-6 text-[#C78B73]" />
+              <div className="bg-white rounded-[24px] w-full max-w-[300px] shadow-2xl border border-[#F0EFEA] p-6 text-center">
+                <div className="w-14 h-14 bg-[#FFF4F2] rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trash2 className="w-7 h-7 text-[#C78B73]" />
                 </div>
-                <h3 className="font-bold text-[#5A5245] text-[16px] mb-2 tracking-widest">確定要刪除嗎？</h3>
-                <p className="text-[#A89F91] text-[13px] mb-5 tracking-wider leading-relaxed">
+                <h3 className="font-bold text-[#5A5245] text-[17px] mb-2.5 tracking-widest">確定要刪除嗎？</h3>
+                <p className="text-[#A89F91] text-[14px] mb-6 tracking-wider leading-relaxed">
                   刪除群組後，裡面的所有<br/>待辦事項將會永久遺失喔！
                 </p>
                 <div className="flex gap-3">
                   <button 
                     onClick={() => setGroupToDelete(null)} 
-                    className="flex-1 py-2.5 rounded-xl font-bold text-[#8F8475] bg-[#F8F7F2] border border-[#EBE9E0] active:scale-95 transition-transform"
+                    className="flex-1 py-3 rounded-xl font-bold text-[#8F8475] bg-[#F8F7F2] border border-[#EBE9E0] active:scale-95 transition-transform"
                   >
                     取消
                   </button>
                   <button 
                     onClick={confirmDeleteGroup} 
-                    className="flex-1 py-2.5 rounded-xl font-bold text-white bg-[#C78B73] active:scale-95 transition-transform shadow-sm"
+                    className="flex-1 py-3 rounded-xl font-bold text-white bg-[#C78B73] active:scale-95 transition-transform shadow-sm"
                   >
                     確認刪除
                   </button>
