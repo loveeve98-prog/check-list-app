@@ -29,7 +29,7 @@
     .sortable-ghost { opacity: 0.3; transform: scale(0.98); background-color: #F8F7F2; border: 1.5px dashed #C2BDB4; }
     .sortable-drag { cursor: grabbing !important; }
 
-    /* 清單區域的日系點點背景 (放大尺寸) */
+    /* 清單區域的日系點點背景 */
     .bg-dot-pattern {
       background-color: #F8F7F2;
       background-image: radial-gradient(#DEDCD0 1.5px, transparent 1.5px);
@@ -38,16 +38,29 @@
   </style>
 </head>
 <body class="bg-white">
+  <!-- 錯誤雷達 -->
+  <div id="error-radar" style="display: none; padding: 20px; color: #C78B73; font-family: sans-serif; background: #FFF4F2; min-height: 100vh;">
+    <h2 style="font-weight: bold; margin-bottom: 10px;">⚠️ 系統發生嚴重錯誤</h2>
+    <p>金鑰可能輸入錯誤或被鎖定，詳情請見下方：</p>
+    <pre id="error-msg" style="background: white; padding: 10px; border-radius: 8px; overflow: auto; font-size: 12px; margin-top: 10px; border: 1px solid #EBE9E0;"></pre>
+  </div>
+
   <div id="root"></div>
 
   <script type="text/babel">
+    window.onerror = function(message, source, lineno, colno, error) {
+      document.getElementById('root').style.display = 'none';
+      document.getElementById('error-radar').style.display = 'block';
+      document.getElementById('error-msg').innerText = message + '\n\n位於: ' + lineno + ':' + colno;
+    };
+
     const { useState, useEffect, useRef } = React;
 
     // ==========================================
-    // 👇 Firebase 專屬設定 👇
+    // 👇 Firebase 專屬設定 (已填入您的新金鑰) 👇
     // ==========================================
     const firebaseConfig = {
-      apiKey: "AIzaSyBfJd0gZQ2ZHZTkpMbt8TvbrhwoZPupanU",
+      apiKey: "AIzaSyAOoiOWr5v2iD9pdLvq-x93U9Ph89M7YsQ",
       authDomain: "webapp-9f6b5.firebaseapp.com",
       projectId: "webapp-9f6b5",
       storageBucket: "webapp-9f6b5.firebasestorage.app",
@@ -55,13 +68,16 @@
       appId: "1:315187495447:web:48d730e6343a1e21831252"
     };
 
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
+    try {
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+    } catch(err) {
+      throw new Error("Firebase 初始化失敗，請檢查金鑰是否正確填寫。");
     }
     const db = firebase.firestore();
     // ==========================================
 
-    // --- 圖示庫元件 ---
     const Icon = ({ path, className = "w-4 h-4", strokeWidth = 2.5 }) => (
       <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={strokeWidth}>
         <path strokeLinecap="round" strokeLinejoin="round" d={path} />
@@ -92,12 +108,12 @@
     const girlFontFamily = '"華康少女文字", "華康少女文字W5", "DFGirl-W5", "DFPGirl-W5", "Yomogi", "Kosugi Maru", sans-serif';
 
     function App() {
-      // --- 狀態管理 ---
       const [groups, setGroups] = useState([]);
       const [currentGroupId, setCurrentGroupId] = useState('');
       const [listData, setListData] = useState({ categories: [] });
       
       const [loading, setLoading] = useState(true);
+      const [errorMsg, setErrorMsg] = useState(''); 
       const [isEditMode, setIsEditMode] = useState(false);
       const [activeCategoryId, setActiveCategoryId] = useState('');
       
@@ -115,7 +131,6 @@
       const [editGroupValue, setEditGroupValue] = useState('');
       const [groupToDelete, setGroupToDelete] = useState(null); 
       
-      // --- 參考物件 ---
       const longPressTimer = useRef(null);
       const isLongPressTriggered = useRef(false);
       const tabsRef = useRef(null);
@@ -123,46 +138,63 @@
       const sortableTabsRef = useRef(null);
       const sortableItemsRef = useRef(null);
 
-      // --- 核心邏輯：載入群組與清單 ---
       useEffect(() => {
-        const metaRef = db.collection('app_metadata').doc('group_list');
-        const unsubMeta = metaRef.onSnapshot((docSnap) => {
-          if (docSnap.exists) {
-            const data = docSnap.data();
-            setGroups(data.groups || []);
-            if (data.groups && data.groups.length > 0 && !currentGroupId) {
-              setCurrentGroupId(data.groups[0].id);
+        try {
+          const metaRef = db.collection('app_metadata').doc('group_list');
+          const unsubMeta = metaRef.onSnapshot((docSnap) => {
+            if (docSnap.exists) {
+              const data = docSnap.data();
+              setGroups(data.groups || []);
+              if (data.groups && data.groups.length > 0 && !currentGroupId) {
+                setCurrentGroupId(data.groups[0].id);
+              }
+            } else {
+              const defaultGroups = [{ id: 'haohao_baby_list', name: '主清單' }];
+              metaRef.set({ groups: defaultGroups });
+              setGroups(defaultGroups);
+              setCurrentGroupId('haohao_baby_list');
             }
-          } else {
-            const defaultGroups = [{ id: 'haohao_baby_list', name: '主清單' }];
-            metaRef.set({ groups: defaultGroups });
-            setGroups(defaultGroups);
-            setCurrentGroupId('haohao_baby_list');
-          }
-        });
-        return () => unsubMeta();
+            setErrorMsg('');
+          }, (error) => {
+            setErrorMsg('無法讀取群組：' + error.message);
+            setLoading(false);
+          });
+          return () => unsubMeta();
+        } catch(e) {
+          setErrorMsg(e.message);
+          setLoading(false);
+        }
       }, []);
 
       useEffect(() => {
         if (!currentGroupId) return;
         setLoading(true);
-        const docRef = db.collection('checklists').doc(currentGroupId);
-        const unsubscribe = docRef.onSnapshot((docSnap) => {
-          if (docSnap.exists) {
-            const data = docSnap.data();
-            setListData(data);
-            setActiveCategoryId(prevId => {
-              const stillExists = data.categories?.find(c => c.id === prevId);
-              return stillExists ? prevId : (data.categories?.[0]?.id || '');
-            });
-          } else {
-            docRef.set(defaultData);
-            setListData(defaultData);
-            setActiveCategoryId(defaultData.categories[0].id);
-          }
+        try {
+          const docRef = db.collection('checklists').doc(currentGroupId);
+          const unsubscribe = docRef.onSnapshot((docSnap) => {
+            if (docSnap.exists) {
+              const data = docSnap.data();
+              setListData(data);
+              setActiveCategoryId(prevId => {
+                const stillExists = data.categories?.find(c => c.id === prevId);
+                return stillExists ? prevId : (data.categories?.[0]?.id || '');
+              });
+            } else {
+              docRef.set(defaultData);
+              setListData(defaultData);
+              setActiveCategoryId(defaultData.categories[0].id);
+            }
+            setLoading(false);
+            setErrorMsg('');
+          }, (error) => {
+            setErrorMsg('無法讀取清單：' + error.message);
+            setLoading(false);
+          });
+          return () => unsubscribe();
+        } catch(e) {
+          setErrorMsg(e.message);
           setLoading(false);
-        });
-        return () => unsubscribe();
+        }
       }, [currentGroupId]);
 
       const updateData = (newData) => {
@@ -170,7 +202,6 @@
         if (currentGroupId) db.collection('checklists').doc(currentGroupId).set(newData);
       };
 
-      // --- 群組操作 ---
       const handleAddGroup = () => {
         if (!newGroupInput.trim()) return;
         const newId = `group_${Date.now()}`;
@@ -218,9 +249,8 @@
         if (longPressTimer.current) clearTimeout(longPressTimer.current);
       };
 
-      // --- 拖曳排序邏輯 ---
       useEffect(() => {
-        if (!isEditMode || !tabsRef.current) return;
+        if (!isEditMode || !tabsRef.current || typeof Sortable === 'undefined') return;
         let nextSibling = null;
         sortableTabsRef.current = Sortable.create(tabsRef.current, {
           animation: 200, delay: 200, delayOnTouchOnly: true, direction: 'horizontal',
@@ -245,7 +275,7 @@
       }, [isEditMode, currentGroupId]);
 
       useEffect(() => {
-        if (!isEditMode || !itemsRef.current) return;
+        if (!isEditMode || !itemsRef.current || typeof Sortable === 'undefined') return;
         let nextSibling = null;
         sortableItemsRef.current = Sortable.create(itemsRef.current, {
           animation: 200, handle: '.drag-handle', filter: '.ignore-drag, input, button', preventOnFilter: false, ghostClass: 'sortable-ghost',
@@ -272,7 +302,6 @@
         return () => { if (sortableItemsRef.current) sortableItemsRef.current.destroy(); };
       }, [isEditMode, activeCategoryId, currentGroupId]);
 
-      // --- 清單與項目操作 ---
       const toggleItem = (categoryId, itemId) => {
         const newData = { ...listData };
         const category = newData.categories.find(c => c.id === categoryId);
@@ -355,9 +384,17 @@
 
       const toggleEditMode = () => { setIsEditMode(!isEditMode); setEditingItemId(null); setEditingCategoryId(null); };
 
-      // --- 渲染畫面 ---
-      const activeCategory = listData.categories?.find(c => c.id === activeCategoryId);
-      const currentGroupName = groups.find(g => g.id === currentGroupId)?.name || '未命名群組';
+      if (errorMsg) return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-[#F8F7F2] text-[#5A5245] font-medium p-6 text-center" style={{ fontFamily: girlFontFamily }}>
+          <div className="w-16 h-16 bg-[#FFF4F2] rounded-full flex items-center justify-center mb-4 border-[2px] border-[#C78B73]">
+            <X className="w-8 h-8 text-[#C78B73]" />
+          </div>
+          <h2 className="text-[20px] font-bold text-[#C78B73] mb-3">連線失敗</h2>
+          <p className="text-[14px] leading-relaxed tracking-wider mb-5">
+            {errorMsg}
+          </p>
+        </div>
+      );
 
       if (loading) return (
         <div className="flex items-center justify-center min-h-screen text-[#5C554B] font-medium" style={{ fontFamily: girlFontFamily }}>
@@ -366,10 +403,12 @@
         </div>
       );
 
+      const activeCategory = listData.categories?.find(c => c.id === activeCategoryId);
+      const currentGroupName = groups.find(g => g.id === currentGroupId)?.name || '未命名群組';
+
       return (
         <div className="min-h-screen pb-24 pb-safe selection:bg-[#E6E4DD] text-[#5A5245]" style={{ fontFamily: girlFontFamily }}>
           
-          {/* 🌟 頂部標題列 */}
           <div className="bg-white/90 backdrop-blur-md px-4 py-4 md:py-5 pt-safe sticky top-0 z-20 border-b border-[#EBE9E0] shadow-sm">
             <div className="max-w-lg mx-auto flex items-center justify-center relative min-h-[50px]">
               
@@ -398,10 +437,9 @@
 
           <div className="max-w-lg mx-auto mt-4 px-4 sm:px-5">
             
-            {/* 🌟 標籤分類列 (Tabs) */}
             <div className="flex overflow-x-auto gap-2 pb-2 pt-1 hide-scrollbar" ref={tabsRef}>
               {listData.categories?.map((cat) => (
-                <div key={cat.id} className="relative shrink-0">
+                <div key={cat.id} className="relative shrink-0 flex items-center">
                   {editingCategoryId === cat.id ? (
                     <input
                       autoFocus
@@ -434,7 +472,7 @@
               ))}
               
               {isEditMode && (
-                <div className="shrink-0 flex items-center ignore-drag bg-white border border-[#EBE9E0] shadow-sm rounded-full overflow-hidden h-[30px]">
+                <div className="shrink-0 flex items-center ignore-drag bg-white border border-[#EBE9E0] shadow-sm rounded-full overflow-hidden h-[34px]">
                   <input 
                     type="text" 
                     placeholder="新分類..." 
@@ -454,7 +492,6 @@
               )}
             </div>
 
-            {/* 🌟 模式切換面板 */}
             <div className="mt-3 mb-4 bg-white rounded-[16px] p-2.5 flex justify-between items-center shadow-sm border border-[#F0EFEA]">
               <div className={`flex items-center font-bold text-[13px] ml-2 tracking-widest ${isEditMode ? 'text-[#C78B73]' : 'text-[#8F8475]'}`}>
                 {isEditMode ? <Unlock className="w-4 h-4 mr-1.5" /> : <Lock className="w-4 h-4 mr-1.5" />}
@@ -466,11 +503,9 @@
               </button>
             </div>
 
-            {/* 🌟 清單主卡片 */}
             {activeCategory && (
               <div className="bg-white rounded-[22px] shadow-[0_4px_20px_rgba(0,0,0,0.04)] mt-5 p-4 sm:p-5 border-[6px] border-white min-h-[40vh] flex flex-col">
                 
-                {/* 待辦項目清單 (可拖曳區塊) */}
                 <div className="space-y-3 flex-1" ref={itemsRef}>
                   {activeCategory.items.map((item) => (
                     <div key={item.id} className="relative group">
@@ -533,7 +568,6 @@
                   ))}
                 </div>
 
-                {/* 新增項目輸入框 */}
                 {isEditMode && (
                   <div className="mt-5 pt-4 border-t-[1.5px] border-dashed border-[#F0EFEA]">
                      <div className="bg-[#FAF9F6] rounded-[16px] pl-3.5 pr-1.5 py-1.5 flex items-center border-[1.5px] border-dashed border-[#EBE9E0] shadow-sm">
@@ -557,9 +591,12 @@
                 )}
               </div>
             )}
+            
+            <div className="text-center mt-6 pb-2 text-[11px] text-[#C2BDB4] font-bold tracking-widest opacity-60">
+              v6.0 Ready
+            </div>
           </div>
 
-          {/* 🌟 群組選擇彈出視窗 (Modal) */}
           {isGroupModalOpen && (
             <div className="fixed inset-0 bg-[#5A5245]/20 backdrop-blur-[2px] z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-[24px] w-full max-w-sm shadow-2xl border border-[#F0EFEA] overflow-hidden flex flex-col animate-[fadeIn_0.2s_ease-out]">
@@ -643,7 +680,6 @@
             </div>
           )}
 
-          {/* 🌟 刪除確認彈出視窗 */}
           {groupToDelete && (
             <div className="fixed inset-0 bg-[#5A5245]/40 backdrop-blur-[2px] z-[60] flex items-center justify-center p-4">
               <div className="bg-white rounded-[24px] w-full max-w-[300px] shadow-2xl border border-[#F0EFEA] p-6 text-center">
